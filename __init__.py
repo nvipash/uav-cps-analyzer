@@ -4,14 +4,18 @@
 UAV-CPS-Analyzer
 ================
 
-A software complex for modeling and analysis of cyber-physical systems 
+A software complex for modeling and analysis of cyber-physical systems
 of unmanned aerial vehicles (UAVs).
 
 Modules:
-    - propagation_models: Signal propagation models (COST 231-Hata, Friis, Rice)
+    - propagation_models: Signal propagation models (COST 231-Hata, Friis, Rice,
+                          Al-Hourani A2G, BER, Doppler, antenna patterns)
     - fhss_emulator: FHSS protocol emulation (OcuSync)
-    - monte_carlo_engine: Monte Carlo simulation engine
+    - monte_carlo_engine: Monte Carlo simulation engine with bootstrap CIs and convergence
     - cps_analyzer: Cyber-Physical Systems analyzer with sensor fusion
+    - sensitivity: Global sensitivity analysis (Sobol indices, Morris method)
+    - validation: Formal validation framework (ASME V&V 20)
+    - reporting: LaTeX table generation and statistical summary reports
     - visualization: Publication-quality figure generation
     - config: Configuration and UAV/jammer databases
 
@@ -30,6 +34,13 @@ from .propagation_models import (
     COST231HataModel,
     RiceFadingModel,
     AltitudeDependentModel,
+    AlHouraniA2GModel,
+    BERModel,
+    ModulationType,
+    DopplerModel,
+    AntennaPattern,
+    OmnidirectionalPattern,
+    CosinePattern,
     calculate_js_ratio
 )
 
@@ -59,6 +70,29 @@ from .cps_analyzer import (
     DempsterShafer
 )
 
+from .sensitivity import (
+    sobol_analysis,
+    morris_screening,
+    SobolResult,
+    MorrisResult
+)
+
+from .validation import (
+    ValidationEngine,
+    ValidationCase,
+    ValidationReport,
+    InternalConsistencyChecker
+)
+
+from .reporting import (
+    generate_latex_table,
+    table3_latex,
+    table4_latex,
+    table7_latex,
+    sobol_latex,
+    generate_summary_report
+)
+
 from .visualization import UAVCPSVisualizer
 
 from .config import (
@@ -67,36 +101,44 @@ from .config import (
     DroneSpecification,
     JammerSpecification,
     DRONE_DATABASE,
-    JAMMER_DATABASE
+    JAMMER_DATABASE,
+    ENVIRONMENT_PRESETS
 )
 
 __all__ = [
     # Version info
     '__version__',
     '__author__',
-    
+
     # Propagation models
     'PropagationModel',
     'FriisModel',
     'COST231HataModel',
     'RiceFadingModel',
     'AltitudeDependentModel',
+    'AlHouraniA2GModel',
+    'BERModel',
+    'ModulationType',
+    'DopplerModel',
+    'AntennaPattern',
+    'OmnidirectionalPattern',
+    'CosinePattern',
     'calculate_js_ratio',
-    
+
     # FHSS emulation
     'FHSSProtocol',
     'OcuSyncProtocol',
     'JammingStrategy',
     'JammingEffectivenessAnalyzer',
     'ChannelSimulator',
-    
+
     # Monte Carlo
     'SimulationParams',
     'SimulationResult',
     'MCResult',
     'MonteCarloEngine',
     'ScenarioSimulator',
-    
+
     # CPS Analysis
     'ThreatType',
     'SensorType',
@@ -105,15 +147,36 @@ __all__ = [
     'SensorFusion',
     'CUASArchitecture',
     'DempsterShafer',
-    
+
+    # Sensitivity analysis
+    'sobol_analysis',
+    'morris_screening',
+    'SobolResult',
+    'MorrisResult',
+
+    # Validation
+    'ValidationEngine',
+    'ValidationCase',
+    'ValidationReport',
+    'InternalConsistencyChecker',
+
+    # Reporting
+    'generate_latex_table',
+    'table3_latex',
+    'table4_latex',
+    'table7_latex',
+    'sobol_latex',
+    'generate_summary_report',
+
     # Visualization
     'UAVCPSVisualizer',
-    
+
     # Configuration
     'Config',
     'DroneType',
     'DroneSpecification',
     'JammerSpecification',
     'DRONE_DATABASE',
-    'JAMMER_DATABASE'
+    'JAMMER_DATABASE',
+    'ENVIRONMENT_PRESETS',
 ]

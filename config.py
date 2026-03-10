@@ -211,7 +211,7 @@ JAMMER_DATABASE = {
 @dataclass
 class SimulationConfig:
     """Configuration for Monte Carlo simulation."""
-    n_iterations: int = 10000
+    n_iterations: int = 1000000
     n_processes: int = -1  # -1 = auto (CPU count - 1)
     random_seed: Optional[int] = None
     
@@ -225,7 +225,7 @@ class SimulationConfig:
     
     # Convergence
     check_convergence: bool = True
-    convergence_threshold: float = 0.01  # 1% change
+    convergence_threshold: float = 0.05  # 5% relative CI half-width
 
 
 @dataclass
@@ -234,16 +234,60 @@ class PropagationConfig:
     # Altitude thresholds
     h_urban: float = 100.0      # Below: urban model
     h_freespace: float = 500.0  # Above: free-space model
-    
+
     # COST 231 parameters
     city_size: str = "medium"   # small, medium, large
-    
+
+    # Propagation model selection
+    blending_method: str = "al_hourani"  # "al_hourani" or "linear"
+    environment: str = "urban"   # dense_urban, urban, suburban, rural
+
     # Fading parameters
     shadow_fading_std_db: float = 8.0
     rice_k_factor_db: float = 6.0
-    
+
     # Frequency
     default_frequency_mhz: float = 2437.0
+
+
+# Environment presets for multi-environment comparative studies
+ENVIRONMENT_PRESETS: Dict[str, dict] = {
+    'dense_urban': {
+        'city_size': 'large',
+        'shadow_fading_std_db': 10.0,
+        'h_urban': 120.0,
+        'h_freespace': 600.0,
+        'rice_k_factor_db': 3.0,
+    },
+    'urban': {
+        'city_size': 'medium',
+        'shadow_fading_std_db': 8.0,
+        'h_urban': 100.0,
+        'h_freespace': 500.0,
+        'rice_k_factor_db': 6.0,
+    },
+    'suburban': {
+        'city_size': 'small',
+        'shadow_fading_std_db': 6.0,
+        'h_urban': 80.0,
+        'h_freespace': 400.0,
+        'rice_k_factor_db': 9.0,
+    },
+    'rural': {
+        'city_size': 'small',
+        'shadow_fading_std_db': 4.0,
+        'h_urban': 50.0,
+        'h_freespace': 200.0,
+        'rice_k_factor_db': 12.0,
+    },
+    'open_field': {
+        'city_size': 'small',
+        'shadow_fading_std_db': 3.0,
+        'h_urban': 30.0,
+        'h_freespace': 100.0,
+        'rice_k_factor_db': 15.0,
+    },
+}
 
 
 @dataclass 

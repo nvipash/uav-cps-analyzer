@@ -1,0 +1,99 @@
+# UAV-CPS-Analyzer: Statistical Summary Report
+Generated: 2026-05-02 20:46:14
+Software version: 1.0.0
+
+## Monte Carlo Simulation Results
+
+| Scenario | Mean J/S (dB) | Std (dB) | 95% CI (dB) | P(jam) | Converged | N |
+|----------|--------------|---------|-------------|--------|-----------|---|
+| Portable 10W, 500m | 66.8 | 5.6 | [56.3, 78.2] | 100% | No | 10,000 |
+| Portable 10W, 1000m | 56.0 | 5.5 | [45.6, 67.2] | 100% | No | 10,000 |
+| Mobile 100W, 2000m | 58.4 | 5.6 | [48.0, 69.8] | 100% | No | 10,000 |
+| Stationary 500W, 3000m | 60.6 | 5.6 | [50.2, 72.0] | 100% | No | 10,000 |
+
+### Bootstrap CI Uncertainty
+- **Portable 10W, 500m**: CI lower [55.98, 56.49], CI upper [77.80, 78.42]
+- **Portable 10W, 1000m**: CI lower [45.43, 45.82], CI upper [66.91, 67.56]
+- **Mobile 100W, 2000m**: CI lower [47.73, 48.23], CI upper [69.41, 70.07]
+- **Stationary 500W, 3000m**: CI lower [49.90, 50.49], CI upper [71.69, 72.30]
+
+### Sample Size Justification
+- **Portable 10W, 500m**: Required N = 9,604 (for 0.1 dB precision at 95% confidence), used N = 10,000
+- **Portable 10W, 1000m**: Required N = 9,604 (for 0.1 dB precision at 95% confidence), used N = 10,000
+- **Mobile 100W, 2000m**: Required N = 9,604 (for 0.1 dB precision at 95% confidence), used N = 10,000
+- **Stationary 500W, 3000m**: Required N = 9,604 (for 0.1 dB precision at 95% confidence), used N = 10,000
+
+## FHSS Effectiveness Analysis
+
+| Strategy | Static | FHSS | Power Multiplier |
+|----------|--------|------|-----------------|
+| broadband | 65% | 50% | x1 |
+| narrowband | 95% | 2% | x40 |
+| sweep | 80% | 45% | x5 |
+| follower | 98% | 49% | x3 |
+| protocol | 85% | 75% | x2 |
+
+## Model Validation (ASME V&V 20)
+
+| Case | Model (dB) | Reference (dB) | Error | MAPE | V&V 20 |
+|------|-----------|---------------|-------|------|--------|
+| Adamy: Tactical 5W, 200m | 57.7 | 50.0 | 7.66 | 15.3% | FAIL |
+| Adamy: Tactical 5W, 500m | 46.8 | 40.0 | 6.78 | 16.9% | FAIL |
+| Adamy: Portable 10W, 500m | 56.7 | 45.0 | 11.72 | 26.0% | FAIL |
+| Adamy: Portable 10W, 1km | 48.3 | 36.0 | 12.28 | 34.1% | FAIL |
+| Adamy: Portable 10W, 2km | 39.4 | 28.0 | 11.45 | 40.9% | FAIL |
+| Adamy: Tactical 20W, 1km | 53.3 | 40.0 | 13.29 | 33.2% | FAIL |
+| Adamy: Wideband 200W, 5km | 55.2 | 32.0 | 23.19 | 72.5% | FAIL |
+| Adamy: Wideband 200W, 10km | 51.5 | 22.0 | 29.53 | 134.2% | FAIL |
+| Poisel: Voice link 50W, 1km | 65.2 | 42.0 | 23.18 | 55.2% | FAIL |
+| Poisel: Data link 100W, 2km | 58.6 | 38.0 | 20.59 | 54.2% | FAIL |
+| Poisel: Mesh attack 100W, 3km | 58.0 | 32.0 | 25.99 | 81.2% | FAIL |
+| Poisel: Helicopter 500W, 5km | 73.8 | 45.0 | 28.83 | 64.1% | FAIL |
+| Poisel: Aircraft 5kW, 20km | 73.4 | 35.0 | 38.36 | 109.6% | FAIL |
+| Poisel: Mobile 100W, 1km | 62.1 | 46.0 | 16.12 | 35.0% | FAIL |
+| Poisel: Mobile 100W, 4km | 50.2 | 28.0 | 22.18 | 79.2% | FAIL |
+| Skolnik: Stationary 500W, 3km | 67.5 | 45.0 | 22.53 | 50.1% | FAIL |
+| Skolnik: Stationary 1kW, 5km | 67.1 | 40.0 | 27.15 | 67.9% | FAIL |
+| Skolnik: Array 2kW, 10km | 73.1 | 35.0 | 38.09 | 108.8% | FAIL |
+| Skolnik: Phased-array 5kW, 15km | 77.0 | 32.0 | 45.05 | 140.8% | FAIL |
+| FCC: DJI Mavic3 ch1 2.4G | 28.1 | 32.0 | 3.92 | 12.2% | PASS |
+| FCC: DJI Mavic3 ch20 2.4G | 33.8 | 20.0 | 13.76 | 68.8% | FAIL |
+| FCC: DJI Mavic3 ch40 5.8G | 34.0 | 10.0 | 24.01 | 240.1% | FAIL |
+| FCC: DJI Mini4 Pro 2.4G | 38.0 | 18.0 | 20.01 | 111.2% | FAIL |
+| FCC: DJI FPV 5.8G | 43.4 | 28.0 | 15.42 | 55.1% | FAIL |
+| Beason: DJI link 500m | 30.9 | 22.0 | 8.88 | 40.4% | FAIL |
+| Schiller: C2 protocol 1km | 24.3 | 14.0 | 10.27 | 73.4% | FAIL |
+| Schiller: FHSS narrowband | 53.6 | 42.0 | 11.60 | 27.6% | FAIL |
+| Beason: FHSS broadband | 48.2 | 36.0 | 12.24 | 34.0% | FAIL |
+| Brust: Portable detect 1km | 39.1 | 32.0 | 7.10 | 22.2% | FAIL |
+| Brust: Mobile detect 2km | 50.5 | 36.0 | 14.48 | 40.2% | FAIL |
+| Park: Anti-drone tactical | 50.2 | 34.0 | 16.23 | 47.7% | FAIL |
+| Wang: C-UAS performance 3km | 58.2 | 34.0 | 24.19 | 71.2% | FAIL |
+| Wang: C-UAS swarm scenario | 62.8 | 40.0 | 22.77 | 56.9% | FAIL |
+| ITU-R P.1411: short-range | 40.3 | 30.0 | 10.31 | 34.4% | FAIL |
+| ITU-R: UMa NLOS 1km | 45.2 | 32.0 | 13.22 | 41.3% | FAIL |
+| ITU-R: UMi LOS 500m | 34.6 | 36.0 | 1.42 | 4.0% | PASS |
+| ITU-R: SUI suburban 2km | 43.5 | 30.0 | 13.55 | 45.2% | FAIL |
+| ITU-R: rural LOS 5km | 54.6 | 28.0 | 26.57 | 94.9% | FAIL |
+| ITU-R: dense urban 1km | 48.7 | 24.0 | 24.69 | 102.9% | FAIL |
+| ITU-R: high-altitude 10km | 58.8 | 22.0 | 36.78 | 167.2% | FAIL |
+
+- Overall MAPE: 65.3%
+- CI Coverage Rate: 20%
+- V&V 20 Pass Rate: 5%
+- Total Cases: 40
+
+### Per-Domain Validation Metrics
+
+| Domain | n | MAPE | V&V 20 PASS | CI Coverage |
+|--------|---|------|-------------|-------------|
+| behavioral | 4 | 43.8% | 0% | 50% |
+| close_range | 5 | 19.3% | 20% | 80% |
+| long_range | 9 | 106.7% | 0% | 0% |
+| medium_range | 17 | 52.4% | 0% | 6% |
+| regulatory | 5 | 97.5% | 20% | 20% |
+
+---
+Report generated by UAV-CPS-Analyzer v1.0.0
+Authors: Novitskyi P.S., Stepaniak M.V.
+Lviv Polytechnic National University, 2025

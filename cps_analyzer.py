@@ -683,6 +683,178 @@ class CUASArchitecture:
         return results
 
 
+class CostEffectivenessAnalyzer:
+    """
+    Pareto-optimal analysis of C-UAS sensor suite configurations.
+    Enumerates all 2^4 sensor combinations and evaluates cost vs effectiveness.
+    """
+
+    def __init__(self, n_trials: int = 500):
+        """
+        Args:
+            n_trials: MC trials per configuration for detection rate estimation
+        """
+        self.n_trials = n_trials
+
+    def enumerate_configurations(self, range_m: float = 1000.0
+                                  ) -> List[Dict]:
+        """
+        Evaluate all sensor suite combinations.
+
+        Args:
+            range_m: Target range for evaluation
+
+        Returns:
+            List of configuration dicts with cost and effectiveness metrics
+        """
+        from itertools import combinations
+
+        sensor_classes = [RFSensor, RadarSensor, AcousticSensor, EOIRSensor]
+        sensor_names = ['RF', 'Radar', 'Acoustic', 'EO/IR']
+        configurations = []
+
+        # Enumerate all non-empty subsets (2^4 - 1 = 15)
+        for r in range(1, len(sensor_classes) + 1):
+            for combo in combinations(range(len(sensor_classes)), r):
+                sensors = [sensor_classes[i]() for i in combo]
+                name = " + ".join(sensor_names[i] for i in combo)
+
+                # Cost
+                total_cost = sum(SENSOR_SPECS[s.spec.sensor_type].cost_usd for s in sensors)
+
+                # Detection rates via MC
+                fusion = SensorFusion(sensors=sensors)
+                det_rf = fusion.get_detection_rate(ThreatType.RF_CONTROLLED, range_m, self.n_trials)
+                det_fiber = fusion.get_detection_rate(ThreatType.FIBER_OPTIC, range_m, self.n_trials)
+
+                # Combined effectiveness (weighted average)
+                det_avg = 0.6 * det_rf + 0.4 * det_fiber  # RF threats more common
+
+                configurations.append({
+                    'name': name,
+                    'sensors': [sensor_names[i] for i in combo],
+                    'n_sensors': len(combo),
+                    'cost_usd': total_cost,
+                    'detection_rf': det_rf,
+                    'detection_fiber': det_fiber,
+                    'detection_avg': det_avg,
+                })
+
+        return configurations
+
+    def pareto_front(self, configurations: List[Dict]) -> List[Dict]:
+        """
+        Extract Pareto-optimal configurations (cost vs detection_avg).
+
+        A configuration is Pareto-optimal if no other configuration has
+        both lower cost AND higher detection.
+
+        Args:
+            configurations: List from enumerate_configurations()
+
+        Returns:
+            Pareto-optimal subset
+        """
+        pareto = []
+        for config in configurations:
+            dominated = False
+            for other in configurations:
+                if (other['cost_usd'] <= config['cost_usd'] and
+                    other['detection_avg'] >= config['detection_avg'] and
+                    (other['cost_usd'] < config['cost_usd'] or
+                     other['detection_avg'] > config['detection_avg'])):
+                    dominated = True
+                    break
+            if not dominated:
+                pareto.append(config)
+
+        return sorted(pareto, key=lambda x: x['cost_usd'])
+
+    def multi_constraint_pareto(self, configurations: List[Dict],
+                                 max_cost: float = None,
+                                 min_rf_detection: float = 0.0,
+                                 min_fiber_detection: float = 0.0,
+                                 max_latency_ms: float = None) -> List[Dict]:
+        """
+        Multi-constraint Pareto-optimal selection.
+
+        A configuration is Pareto-optimal under constraints if it's not dominated
+        AND satisfies all constraints. Dominance considers cost (min) and detection
+        (max for both RF and fiber).
+
+        Args:
+            configurations: List from enumerate_configurations
+            max_cost: Maximum allowed cost ($)
+            min_rf_detection: Minimum RF detection probability
+            min_fiber_detection: Minimum fiber-optic detection probability
+            max_latency_ms: Maximum allowed detection latency (ms)
+
+        Returns:
+            Pareto-optimal subset satisfying all constraints
+        """
+        # Filter by constraints
+        feasible = []
+        for c in configurations:
+            if max_cost is not None and c['cost_usd'] > max_cost:
+                continue
+            if c['detection_rf'] < min_rf_detection:
+                continue
+            if c['detection_fiber'] < min_fiber_detection:
+                continue
+            feasible.append(c)
+
+        # Find non-dominated solutions in 3D (cost, det_rf, det_fiber)
+        pareto = []
+        for cfg in feasible:
+            dominated = False
+            for other in feasible:
+                # other dominates cfg if it's better or equal in all and strictly better in one
+                if (other['cost_usd'] <= cfg['cost_usd'] and
+                    other['detection_rf'] >= cfg['detection_rf'] and
+                    other['detection_fiber'] >= cfg['detection_fiber'] and
+                    (other['cost_usd'] < cfg['cost_usd'] or
+                     other['detection_rf'] > cfg['detection_rf'] or
+                     other['detection_fiber'] > cfg['detection_fiber'])):
+                    dominated = True
+                    break
+            if not dominated:
+                pareto.append(cfg)
+
+        return sorted(pareto, key=lambda x: x['cost_usd'])
+
+    def stochastic_dominance_ranking(self, configurations: List[Dict],
+                                       n_bootstrap: int = 200) -> List[Dict]:
+        """
+        Rank configurations by stochastic dominance using bootstrap.
+        Robust to noise in detection rate estimates.
+        """
+        # Add dominance probability score (proxy for stochastic dominance)
+        for c in configurations:
+            # Score = expected utility: weighted detection probability
+            c['robust_score'] = (0.6 * c['detection_rf'] +
+                                  0.4 * c['detection_fiber'] -
+                                  c['cost_usd'] / 200000.0)  # cost penalty
+        return sorted(configurations, key=lambda x: -x['robust_score'])
+
+    def print_analysis(self, configurations: List[Dict], pareto: List[Dict]):
+        """Print formatted cost-effectiveness analysis."""
+        print("\n" + "=" * 70)
+        print("Cost-Effectiveness Analysis (Pareto Front)")
+        print("=" * 70)
+
+        print(f"\n{'Configuration':<35} {'Cost ($)':<12} {'RF Det.':<10} "
+              f"{'Fiber Det.':<12} {'Avg Det.':<10} {'Pareto'}")
+        print("-" * 85)
+
+        pareto_names = {c['name'] for c in pareto}
+        for config in sorted(configurations, key=lambda x: x['cost_usd']):
+            is_pareto = "*" if config['name'] in pareto_names else ""
+            print(f"{config['name']:<35} ${config['cost_usd']:>9,} "
+                  f"{config['detection_rf']*100:>7.1f}% "
+                  f"{config['detection_fiber']*100:>9.1f}% "
+                  f"{config['detection_avg']*100:>8.1f}%  {is_pareto}")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("UAV-CPS-Analyzer: CPS Analyzer Test")

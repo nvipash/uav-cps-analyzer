@@ -17,6 +17,12 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from enum import Enum
 
+try:
+    from propagation_models import BERModel, ModulationType
+except ImportError:
+    BERModel = None
+    ModulationType = None
+
 
 class JammingStrategy(Enum):
     """Types of jamming strategies against FHSS systems."""
@@ -303,12 +309,18 @@ class JammingEffectivenessAnalyzer:
         dwell_time = self.protocol.params.dwell_time_ms
         
         if strategy == JammingStrategy.BROADBAND:
-            # Effectiveness depends on power spread across band
+            # Broadband jammer spreads power across entire band.
+            # Against FHSS: power is diluted across all channels, so per-channel
+            # power density = total_power / n_channels. Effectiveness is reduced
+            # compared to static because the jammer cannot concentrate energy.
             if jammer_bandwidth_mhz >= total_bandwidth:
-                return 0.85  # Full coverage but diluted power
+                # Full band coverage but power diluted across n_channels
+                # Effective J/S per channel drops by 10*log10(n_channels) ~ 16 dB for 40ch
+                # This makes broadband less effective than against static channel
+                return 0.50  # 50% — covers all hops but each at reduced power
             else:
                 coverage = jammer_bandwidth_mhz / total_bandwidth
-                return coverage * 0.7
+                return coverage * 0.50
         
         elif strategy == JammingStrategy.NARROWBAND:
             # Only effective if happens to hit current channel
@@ -363,8 +375,8 @@ class JammingEffectivenessAnalyzer:
     def _static_effectiveness(self, strategy: JammingStrategy) -> float:
         """Effectiveness against static (non-hopping) channel."""
         static_eff = {
-            JammingStrategy.BROADBAND: 0.70,
-            JammingStrategy.NARROWBAND: 0.95,
+            JammingStrategy.BROADBAND: 0.65,   # Covers target freq but power diluted across band
+            JammingStrategy.NARROWBAND: 0.95,   # Concentrated on known frequency
             JammingStrategy.SWEEP: 0.80,
             JammingStrategy.FOLLOWER: 0.98,
             JammingStrategy.PROTOCOL_AWARE: 0.85
@@ -411,23 +423,30 @@ class ChannelSimulator:
             tracking_delay_ms=0.5
         )
         
-        # Simulate each hop
+        # Simulate each hop using BER-based soft degradation
         successful_hops = 0
         jammed_hops = 0
-        
-        # J/S threshold for successful jamming (typically 10-15 dB)
-        js_threshold_db = 10.0
-        
+
         for time, channel_idx, freq in sequence:
             # Determine if this hop is jammed
             if jamming_strategy == JammingStrategy.NARROWBAND:
                 # Random single channel jammed
                 jammed_channel = np.random.randint(0, self.protocol.params.n_channels)
-                is_jammed = (channel_idx == jammed_channel) and (js_ratio_db > js_threshold_db)
+                channel_hit = (channel_idx == jammed_channel)
             else:
                 # Probabilistic jamming based on effectiveness
-                is_jammed = (np.random.random() < effectiveness) and (js_ratio_db > js_threshold_db)
-            
+                channel_hit = np.random.random() < effectiveness
+
+            if channel_hit and BERModel is not None:
+                # Use BER/PER model for soft degradation
+                jam_prob = BERModel.jamming_success_probability(js_ratio_db)
+                is_jammed = np.random.random() < jam_prob
+            elif channel_hit:
+                # Fallback to hard threshold if BERModel not available
+                is_jammed = js_ratio_db > 10.0
+            else:
+                is_jammed = False
+
             if is_jammed:
                 jammed_hops += 1
             else:

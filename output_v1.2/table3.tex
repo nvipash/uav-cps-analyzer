@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Monte Carlo simulation results for jamming scenarios}
+\label{tab:mc_results}
+\begin{tabular}{lrrrrrr}
+\toprule
+Scenario & $\bar{J/S}$ (dB) & $\sigma$ (dB) & 95\% CI (dB) & $P_{\text{jam}}$ & Converged & N \\
+\midrule
+Portable 10W, 500M & 66.8 & 5.6 & [56.3, 78.2] & 100\% & No & 10,000 \\
+Portable 10W, 1000M & 56.0 & 5.5 & [45.6, 67.2] & 100\% & No & 10,000 \\
+Mobile 100W, 2000M & 58.4 & 5.6 & [48.0, 69.8] & 100\% & No & 10,000 \\
+Stationary 500W, 3000M & 60.6 & 5.6 & [50.2, 72.0] & 100\% & No & 10,000 \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize{CI computed via percentile method with bootstrap verification.}
+\end{table}

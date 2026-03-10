@@ -1,0 +1,53 @@
+\begin{table}[htbp]
+\centering
+\caption{Model validation against experimental references (ASME V\&V 20)}
+\label{tab:validation}
+\begin{tabular}{lrrrrrr}
+\toprule
+Scenario & Model (dB) & 95\% CI & Reference & Error (dB) & MAPE & V\&V 20 \\
+\midrule
+Adamy: Tactical 5W, 200m & 57.7 & [47.0, 69.0] & 50.0 & 7.66 & 15.3\% & Fail \\
+Adamy: Tactical 5W, 500m & 46.8 & [36.2, 58.4] & 40.0 & 6.78 & 16.9\% & Fail \\
+Adamy: Portable 10W, 500m & 56.7 & [46.0, 68.5] & 45.0 & 11.72 & 26.0\% & Fail \\
+Adamy: Portable 10W, 1km & 48.3 & [37.6, 60.1] & 36.0 & 12.28 & 34.1\% & Fail \\
+Adamy: Portable 10W, 2km & 39.4 & [28.8, 51.2] & 28.0 & 11.45 & 40.9\% & Fail \\
+Adamy: Tactical 20W, 1km & 53.3 & [42.6, 64.9] & 40.0 & 13.29 & 33.2\% & Fail \\
+Adamy: Wideband 200W, 5km & 55.2 & [44.7, 66.6] & 32.0 & 23.19 & 72.5\% & Fail \\
+Adamy: Wideband 200W, 10km & 51.5 & [41.1, 63.0] & 22.0 & 29.53 & 134.2\% & Fail \\
+Poisel: Voice link 50W, 1km & 65.2 & [54.8, 76.5] & 42.0 & 23.18 & 55.2\% & Fail \\
+Poisel: Data link 100W, 2km & 58.6 & [48.2, 69.9] & 38.0 & 20.59 & 54.2\% & Fail \\
+Poisel: Mesh attack 100W, 3km & 58.0 & [47.5, 69.3] & 32.0 & 25.99 & 81.2\% & Fail \\
+Poisel: Helicopter 500W, 5km & 73.8 & [63.3, 85.2] & 45.0 & 28.83 & 64.1\% & Fail \\
+Poisel: Aircraft 5kW, 20km & 73.4 & [62.7, 84.6] & 35.0 & 38.36 & 109.6\% & Fail \\
+Poisel: Mobile 100W, 1km & 62.1 & [51.5, 73.5] & 46.0 & 16.12 & 35.0\% & Fail \\
+Poisel: Mobile 100W, 4km & 50.2 & [39.5, 61.6] & 28.0 & 22.18 & 79.2\% & Fail \\
+Skolnik: Stationary 500W, 3km & 67.5 & [56.9, 78.8] & 45.0 & 22.53 & 50.1\% & Fail \\
+Skolnik: Stationary 1kW, 5km & 67.1 & [56.5, 78.6] & 40.0 & 27.15 & 67.9\% & Fail \\
+Skolnik: Array 2kW, 10km & 73.1 & [62.4, 84.6] & 35.0 & 38.09 & 108.8\% & Fail \\
+Skolnik: Phased-array 5kW, 15km & 77.0 & [66.3, 88.8] & 32.0 & 45.05 & 140.8\% & Fail \\
+FCC: DJI Mavic3 ch1 2.4G & 28.1 & [17.4, 39.7] & 32.0 & 3.92 & 12.2\% & Pass \\
+FCC: DJI Mavic3 ch20 2.4G & 33.8 & [23.1, 45.4] & 20.0 & 13.76 & 68.8\% & Fail \\
+FCC: DJI Mavic3 ch40 5.8G & 34.0 & [23.4, 45.7] & 10.0 & 24.01 & 240.1\% & Fail \\
+FCC: DJI Mini4 Pro 2.4G & 38.0 & [27.6, 49.4] & 18.0 & 20.01 & 111.2\% & Fail \\
+FCC: DJI FPV 5.8G & 43.4 & [33.0, 54.8] & 28.0 & 15.42 & 55.1\% & Fail \\
+Beason: DJI link 500m & 30.9 & [20.4, 42.2] & 22.0 & 8.88 & 40.4\% & Fail \\
+Schiller: C2 protocol 1km & 24.3 & [13.9, 35.6] & 14.0 & 10.27 & 73.4\% & Fail \\
+Schiller: FHSS narrowband & 53.6 & [43.2, 65.0] & 42.0 & 11.60 & 27.6\% & Fail \\
+Beason: FHSS broadband & 48.2 & [37.7, 59.7] & 36.0 & 12.24 & 34.0\% & Fail \\
+Brust: Portable detect 1km & 39.1 & [28.6, 50.6] & 32.0 & 7.10 & 22.2\% & Fail \\
+Brust: Mobile detect 2km & 50.5 & [40.0, 62.0] & 36.0 & 14.48 & 40.2\% & Fail \\
+Park: Anti-drone tactical & 50.2 & [39.7, 61.8] & 34.0 & 16.23 & 47.7\% & Fail \\
+Wang: C-UAS performance 3km & 58.2 & [47.7, 69.7] & 34.0 & 24.19 & 71.2\% & Fail \\
+Wang: C-UAS swarm scenario & 62.8 & [52.2, 74.2] & 40.0 & 22.77 & 56.9\% & Fail \\
+ITU-R P.1411: short-range & 40.3 & [29.6, 51.7] & 30.0 & 10.31 & 34.4\% & Fail \\
+ITU-R: UMa NLOS 1km & 45.2 & [34.4, 56.7] & 32.0 & 13.22 & 41.3\% & Fail \\
+ITU-R: UMi LOS 500m & 34.6 & [23.8, 45.9] & 36.0 & 1.42 & 4.0\% & Pass \\
+ITU-R: SUI suburban 2km & 43.5 & [32.7, 54.8] & 30.0 & 13.55 & 45.2\% & Fail \\
+ITU-R: rural LOS 5km & 54.6 & [43.8, 66.0] & 28.0 & 26.57 & 94.9\% & Fail \\
+ITU-R: dense urban 1km & 48.7 & [38.1, 60.3] & 24.0 & 24.69 & 102.9\% & Fail \\
+ITU-R: high-altitude 10km & 58.8 & [48.1, 70.5] & 22.0 & 36.78 & 167.2\% & Fail \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize{Overall MAPE: 65.3\%, V\&V 20 pass rate: 5\%}
+\end{table}
