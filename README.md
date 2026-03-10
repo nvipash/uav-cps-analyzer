@@ -5,178 +5,119 @@
 *Software Complex for Modeling Cyber-Physical Systems of Unmanned Aerial Vehicles*
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)]()
 
 ## Опис
 
-UAV-CPS-Analyzer — це програмний комплекс для моделювання та аналізу надійності кіберфізичних систем безпілотних літальних апаратів в умовах електромагнітних завад.
+UAV-CPS-Analyzer — комплексний програмний інструмент для моделювання та аналізу надійності кіберфізичних систем безпілотних літальних апаратів в умовах електромагнітних завад. Інтегрує 13 фізичних моделей розповсюдження, 11 модулів штучного інтелекту, формальну валідацію за ASME V&V 20 та 40 еталонних сценаріїв з відкритих науково-технічних джерел.
 
-### Основні можливості:
+**Автори:** Новицький П.С., Степаняк М.В., Національний університет «Львівська політехніка», 2025-2026
 
-- **Моделювання поширення сигналу** — COST 231-Hata, Friis, висотно-залежна комбінована модель
-- **Емуляція FHSS-протоколів** — OcuSync 2.0/3.0/3+, аналіз стратегій jamming
-- **Монте-Карло симуляція** — паралельні обчислення, статистичний аналіз, довірчі інтервали
-- **Аналіз C-UAS архітектури** — sensor fusion (Dempster-Shafer), багаторівнева система захисту
-- **Візуалізація** — публікаційні графіки для наукових статей
+## Основні можливості
+
+- **13 моделей розповсюдження** — Friis, COST 231-Hata, Rice fading, Al-Hourani A2G, BER/PER soft degradation, Doppler, ITU-R P.676 atmospheric absorption, urban multi-path correction
+- **Монте-Карло симуляція** — QMC (Sobol), antithetic variates, адаптивна збіжність, просторова кореляція (Gudmundson), N=10 000
+- **Емуляція FHSS** — DJI OcuSync 2.0/3.0/3+, 5 стратегій глушіння, LFSR-16
+- **Аналіз C-UAS** — Dempster-Shafer 4-сенсорна фузія, Парето-оптимізація сенсорних комплексів
+- **11 AI/ML модулів** — сурогатна модель (2400× прискорення), RL-глушник, ансамблевий класифікатор (99.6%), ко-еволюція, PCE, мережі глушників, роєві сценарії, траєкторії
+- **Мережі глушників** — координоване об'єднання потужностей, генетична оптимізація розміщення
+- **Сценарії роїв** — 4 типи атак (cooperative/decentralized/kamikaze/decoy+strike)
+- **Формальна валідація** — ASME V&V 20, 40 еталонних випадків з 7 джерел
 
 ## Встановлення
 
-### Вимоги
-
-- Python 3.9+
-- NumPy 1.21+
-- SciPy 1.7+
-- Matplotlib 3.4+
-
-### Інсталяція
-
 ```bash
-# Клонування репозиторію
-git clone https://github.com/your-repo/UAV-CPS-Analyzer.git
-cd UAV-CPS-Analyzer
-
-# Встановлення залежностей
-pip install numpy scipy matplotlib
-
-# Запуск тестів
-python -m pytest tests/
+pip install numpy scipy matplotlib scikit-learn
 ```
 
-## Використання
+Python 3.9+, без додаткових залежностей.
 
-### Швидкий старт
+## Запуск
 
 ```bash
-# Повний аналіз з генерацією графіків
-python src/main.py
+# Повний аналіз (23 кроки, ~130 с)
+python run_analysis.py
 
-# Тільки сценарії з Таблиці 3 (Monte Carlo)
-python src/main.py --scenario table3 -n 10000
-
-# Тільки FHSS аналіз
-python src/main.py --fhss
-
-# Генерація графіків
-python src/main.py --figures -o output/
-```
-
-### Програмне використання
-
-```python
-from src import (
-    MonteCarloEngine, SimulationParams,
-    OcuSyncProtocol, JammingEffectivenessAnalyzer,
-    SensorFusion, ThreatType
-)
-
-# Monte Carlo симуляція
-engine = MonteCarloEngine()
-params = SimulationParams(
-    jammer_power_dbm=40,      # 10W
-    jammer_distance_m=500,
-    signal_distance_m=5000,
-    altitude_m=100
-)
-result = engine.run_simulation(params, n_iterations=10000)
-
-print(f"J/S: {result.mean_js_db:.1f} ± {result.std_js_db:.1f} dB")
-print(f"95% CI: [{result.ci_95_lower:.1f}, {result.ci_95_upper:.1f}]")
-
-# FHSS аналіз
-protocol = OcuSyncProtocol(version="3.0")
-analyzer = JammingEffectivenessAnalyzer(protocol)
-results = analyzer.compare_strategies()
-
-# Sensor fusion
-fusion = SensorFusion()
-detection_rate = fusion.get_detection_rate(ThreatType.RF_CONTROLLED, 1000)
+# Окремі модулі
+python validation.py
+python ai_threat_classifier.py
+python multi_jammer_coordination.py
 ```
 
 ## Структура проекту
 
 ```
 UAV-CPS-Analyzer/
-├── src/
-│   ├── __init__.py           # Package initialization
-│   ├── main.py               # Main entry point
-│   ├── propagation_models.py # Signal propagation models
-│   ├── fhss_emulator.py      # FHSS protocol emulation
-│   ├── monte_carlo_engine.py # Monte Carlo simulation
-│   ├── cps_analyzer.py       # CPS analysis, sensor fusion
-│   ├── visualization.py      # Figure generation
-│   └── config.py             # Configuration, databases
-├── tests/                    # Unit tests
-├── docs/                     # Documentation
-├── output/                   # Generated figures
-├── README.md
-└── config.json              # Configuration file
+│
+├── Core modules (Layer 1 — Physics)
+│   ├── propagation_models.py   # 13 RF/propagation models
+│   ├── fhss_emulator.py        # FHSS protocol emulation
+│   ├── monte_carlo_engine.py   # MC + QMC + antithetic, N=10 000
+│   ├── cps_analyzer.py         # Dempster-Shafer sensor fusion, C-UAS
+│   ├── config.py               # Drone DB, jammer specs, environments
+│   └── visualization.py        # 5 publication figures (300 DPI PDF+PNG)
+│
+├── Statistical & Validation (Layer 2)
+│   ├── sensitivity.py          # Sobol S1/ST, Morris elementary effects
+│   ├── validation.py           # ASME V&V 20, 40 cases, per-domain MAPE
+│   └── reporting.py            # LaTeX booktabs tables, Markdown reports
+│
+├── AI/ML & Advanced (Layer 3)
+│   ├── ai_surrogate.py         # MLP/GP/ensemble surrogate, R²=0.965, 2400×
+│   ├── ai_optimizer.py         # Bayesian optimization (DE + surrogate)
+│   ├── ai_propagation_correction.py  # Gradient Boosting residual correction
+│   ├── ai_adaptive_jamming.py  # Q-learning RL jammer agent
+│   ├── ai_threat_classifier.py # MLP+RF+GBT ensemble, 99.6% accuracy
+│   ├── ai_coevolution.py       # Adversarial AI-vs-AI, Nash equilibrium
+│   ├── ai_uncertainty_active.py # PCE (Hermite order-3), active learning
+│   ├── multi_jammer_coordination.py  # Jammer networks, genetic optimizer
+│   ├── swarm_scenarios.py      # UAV swarm attacks (4 types)
+│   └── trajectory_scenarios.py # Time-varying trajectories (4 types)
+│
+├── run_analysis.py             # 23-step integrated pipeline
+│
+├── docs/
+│   ├── en/README.md            # Full English documentation
+│   └── ua/README.md            # Повна українська документація
+│
+└── output_v1.2/                # Generated artifacts
+    ├── fig_*.pdf / fig_*.png   # 5 publication figures (300 DPI)
+    ├── table3.tex / table4.tex / table7.tex
+    └── summary_report.md
 ```
 
-## Модулі
+## Ключові результати (v1.2)
 
-### propagation_models.py
+| Модуль | Результат |
+|--------|-----------|
+| Surrogate model | R²=0.965, RMSE=3.32 dB, **2400× speedup** |
+| BER/PER threshold | Реальний поріг J/S ≈ −10 dB (не +10 dB) → **100× менша потужність** |
+| FHSS protection | Narrowband втрачає **97% ефективності** проти FHSS |
+| Nash equilibrium | frequency_diversity **43.5%** — домінантна стратегія захисника |
+| Threat classifier | **99.6%** accuracy (vs 32% Dempster-Shafer) |
+| RL jammer (adversarial) | **+112%** vs best fixed strategy |
+| Spatial correlation | Ігнорування → **+9–30%** завищення ширини CI |
+| Validation (close range) | MAPE **7.9%**, PASS rate **100%** (ASME V&V 20) |
 
-Моделі поширення радіосигналу:
-- `FriisModel` — втрати у вільному просторі (ITU-R P.525-4)
-- `COST231HataModel` — міська модель (COST 231)
-- `RiceFadingModel` — модель замирань Райса
-- `AltitudeDependentModel` — комбінована висотно-залежна модель
+## Документація
 
-### fhss_emulator.py
-
-Емуляція FHSS-протоколів:
-- `OcuSyncProtocol` — емуляція DJI OcuSync (40 каналів, 500 Гц)
-- `JammingEffectivenessAnalyzer` — аналіз ефективності стратегій jamming
-- `ChannelSimulator` — симуляція каналу зв'язку
-
-### monte_carlo_engine.py
-
-Статистичний аналіз:
-- `MonteCarloEngine` — паралельна симуляція Монте-Карло
-- `ScenarioSimulator` — симуляція сценаріїв зі статті
-- Аналіз чутливості (tornado diagram)
-
-### cps_analyzer.py
-
-Аналіз кіберфізичних систем:
-- `SensorFusion` — злиття даних сенсорів (Dempster-Shafer)
-- `CUASArchitecture` — багаторівнева архітектура C-UAS
-- Моделі сенсорів: RF, Radar, Acoustic, EO/IR
-
-## Результати
-
-Програмний комплекс відтворює результати з наукової статті:
-
-| Сценарій | J/S (дБ) | 95% ДІ | P(success) |
-|----------|----------|--------|------------|
-| Portable 10W, 500m | 38.2 | [28.8, 47.3] | 100% |
-| Portable 10W, 1000m | 27.6 | [18.3, 36.5] | 100% |
-| Mobile 100W, 2000m | 27.1 | [17.9, 36.2] | 100% |
-| Stationary 500W, 3000m | 29.1 | [19.7, 38.3] | 100% |
-
-## Автори
-
-- **Новіцький П.С.** — Львівська політехніка
-- **Степаняк М.В.** — науковий керівник
-
-## Література
-
-1. Menouar H. et al., "UAV-Enabled Intelligent Transportation Systems," IEEE Commun. Mag., 2017.
-2. Torrieri D., Principles of Spread-Spectrum Communication Systems, Springer, 2018.
-3. Metropolis N., Ulam S., "The Monte Carlo Method," J. Amer. Stat. Assoc., 1949.
-4. De Miguel-Vela C. et al., "Counter-UAS Sensors," Sensors, 2021.
-
-## Ліцензія
-
-MIT License. Див. [LICENSE](LICENSE) для деталей.
+- [English Documentation](docs/en/README.md)
+- [Українська документація](docs/ua/README.md)
 
 ## Цитування
 
 ```bibtex
-@article{novitskyi2025uav,
-  title={Software Complex for Modeling Cyber-Physical Systems of UAVs},
-  author={Novitskyi, P.S. and Stepaniak, M.V.},
-  journal={Lviv Polytechnic National University},
-  year={2025}
+@software{uav_cps_analyzer_2025,
+  author    = {Novitskyi, Pavlo and Stepaniak, Maksym},
+  title     = {UAV-CPS-Analyzer: Software Complex for Cyber-Physical Systems
+               Analysis of UAV Communication Reliability},
+  year      = {2025},
+  institution = {Lviv Polytechnic National University},
+  version   = {1.2.0}
 }
 ```
+
+## Ліцензія
+
+GNU General Public License v3.0 — see LICENSE file.

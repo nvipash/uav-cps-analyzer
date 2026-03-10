@@ -6,7 +6,7 @@ UAV-CPS-Analyzer is a comprehensive software complex for modeling and analyzing 
 
 **Authors:** Novitskyi P.S., Stepaniak M.V., Lviv Polytechnic National University, 2025-2026
 **Version:** 1.2.0
-**License:** MIT
+**License:** GPL-3.0
 **Language:** Python 3.9+
 
 ## Table of Contents
@@ -56,7 +56,7 @@ The system has three layers:
 - **validation.py** — ASME V&V 20 framework: 40 validation cases from 7 sources (Adamy 2015, Poisel 2011, Skolnik 2008, FCC ID, Beason 2021, Schiller 2023, ITU-R P.1411); per-domain MAPE breakdown (close/medium/long range, regulatory, behavioral); 7 internal consistency checks
 - **reporting.py** — LaTeX table generation (booktabs format), Markdown summary reports with timestamps and reproducibility metadata
 
-### Layer 3: AI/ML & Advanced (8 modules)
+### Layer 3: AI/ML & Advanced (11 modules)
 
 - **ai_surrogate.py** — Neural network surrogate model (MLP/GP/ensemble) trained on Monte Carlo outputs; achieves R²≥0.96 with 200 training points and 2000-3000× speedup
 - **ai_optimizer.py** — Bayesian optimization (differential evolution + surrogate) for jammer/sensor placement; sensor suite optimization with budget constraints
@@ -231,7 +231,7 @@ Steps:
 
 ## Output Artifacts
 
-Generated in `output/`:
+Generated in `output_v1.2/`:
 - 5 publication figures (PDF + PNG, 300 DPI)
 - 3 LaTeX tables (table3.tex, table4.tex, table7.tex)
 - Markdown summary report (summary_report.md)
@@ -278,14 +278,14 @@ To add a new AI module:
            of UAV Communication Reliability},
   year = {2025},
   institution = {Lviv Polytechnic National University},
-  url = {https://github.com/your-username/uav-cps-analyzer},
+  url = {https://github.com/nvipash/uav-cps-analyzer},
   version = {1.2.0}
 }
 ```
 
 ## License
 
-MIT License — see LICENSE file.
+GNU General Public License v3.0 — see LICENSE file.
 
 ## Contact
 

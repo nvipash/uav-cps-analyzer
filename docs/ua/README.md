@@ -6,7 +6,7 @@ UAV-CPS-Analyzer — комплексний програмний продукт 
 
 **Автори:** Новицький П.С., Степаняк М.В., Національний університет "Львівська політехніка", 2025-2026
 **Версія:** 1.2.0
-**Ліцензія:** MIT
+**Ліцензія:** GPL-3.0
 **Мова:** Python 3.9+
 
 ## Зміст
@@ -56,7 +56,7 @@ python multi_jammer_coordination.py
 - **validation.py** — Фреймворк ASME V&V 20: 40 валідаційних випадків з 7 джерел (Adamy 2015, Poisel 2011, Skolnik 2008, FCC ID, Beason 2021, Schiller 2023, ITU-R P.1411); MAPE розбивка по доменах (близький/середній/далекий діапазон, регуляторний, поведінковий); 7 перевірок внутрішньої узгодженості
 - **reporting.py** — Генерація LaTeX-таблиць (формат booktabs), Markdown зведені звіти з часовими мітками та метаданими відтворюваності
 
-### Рівень 3: AI/ML та розширені (10+ модулів)
+### Рівень 3: AI/ML та розширені (11 модулів)
 
 - **ai_surrogate.py** — Сурогатна модель на основі нейронної мережі (MLP/GP/ансамбль), навчена на виходах Монте-Карло; досягає R²≥0.96 з 200 точками тренування та прискоренням 2000-3000×
 - **ai_optimizer.py** — Байєсівська оптимізація (диференціальна еволюція + сурогат) для розміщення глушників/сенсорів; оптимізація сенсорних комплексів з бюджетними обмеженнями
@@ -229,7 +229,7 @@ python run_analysis.py
 
 ## Вихідні артефакти
 
-Генеруються в `output/`:
+Генеруються в `output_v1.2/`:
 - 5 публікаційних фігур (PDF + PNG, 300 DPI)
 - 3 LaTeX таблиці (table3.tex, table4.tex, table7.tex)
 - Markdown зведений звіт (summary_report.md)
@@ -276,14 +276,14 @@ python run_analysis.py
            of UAV Communication Reliability},
   year = {2025},
   institution = {Lviv Polytechnic National University},
-  url = {https://github.com/your-username/uav-cps-analyzer},
+  url = {https://github.com/nvipash/uav-cps-analyzer},
   version = {1.2.0}
 }
 ```
 
 ## Ліцензія
 
-MIT License — див. файл LICENSE.
+GNU General Public License v3.0 — див. файл LICENSE.
 
 ## Контакти
 
