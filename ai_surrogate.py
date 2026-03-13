@@ -9,6 +9,11 @@ Approach:
 - Train MLPRegressor to predict (mean_js, std_js, success_probability)
 - Achieves ~1000x speedup over full MC at <1% prediction error
 
+ВАЖЛИВО — дані: навчальні дані на 100% синтетичні (Latin Hypercube Sampling →
+Monte Carlo симуляція). R²=0.965 і RMSE вимірюються на синтетичній тест-вибірці.
+Вони показують точність апроксимації симуляції, а НЕ відповідність реальним
+польовим вимірюванням. Для оцінки фізичної точності дивіться validation.py.
+
 Authors: Novitskyi P.S., Stepaniak M.V.
 Lviv Polytechnic National University, 2025
 """
@@ -31,10 +36,12 @@ from scipy.stats import qmc
 
 try:
     from monte_carlo_engine import MonteCarloEngine, SimulationParams
+    from literature_dataset import LiteratureDataset
 except ImportError:
     import sys
     sys.path.insert(0, '.')
     from monte_carlo_engine import MonteCarloEngine, SimulationParams
+    from literature_dataset import LiteratureDataset
 
 
 # Parameter space bounds for training
@@ -66,18 +73,26 @@ class SurrogateTrainer:
         self.engine = MonteCarloEngine(n_processes=1)
 
     def generate_training_data(self, n_points: int = 500,
-                                seed: int = 42) -> Tuple[np.ndarray, np.ndarray]:
+                                seed: int = 42,
+                                seed_with_literature: bool = True,
+                                ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generate training data using Latin Hypercube Sampling.
 
+        Optionally prepends literature anchor points (Khawaja 2019 / Matolak 2017)
+        to the LHS dataset. These anchor points are derived from real measured path
+        loss exponents and constrain the surrogate toward physically realistic values
+        at key operating points across different environments and altitudes.
+
         Args:
-            n_points: Number of training points
-            seed: Random seed for reproducibility
+            n_points:             Number of LHS training points (MC-evaluated)
+            seed:                 Random seed for reproducibility
+            seed_with_literature: If True, prepend ~35 literature anchor points
 
         Returns:
-            (X, Y) where X is (n, 6) features and Y is (n, 3) targets
+            (X, Y) where X is (n_total, 6) features and Y is (n_total, 3) targets
         """
-        print(f"  Generating {n_points} training points ({self.mc_iters} MC iter each)...",
+        print(f"  Generating {n_points} LHS training points ({self.mc_iters} MC iter each)...",
               flush=True)
 
         # Latin Hypercube Sampling for space-filling design
@@ -115,7 +130,26 @@ class SurrogateTrainer:
                 eta = (n_points - i - 1) / rate
                 print(f"    [{i+1}/{n_points}] {rate:.0f} pts/s, ETA {eta:.0f}s", flush=True)
 
-        print(f"  Training data generated in {time.time()-t0:.1f}s", flush=True)
+        print(f"  LHS data generated in {time.time()-t0:.1f}s", flush=True)
+
+        if seed_with_literature:
+            # Anchor points from Khawaja (2019) / Matolak (2017) measured channel data.
+            # These represent physically realistic J/S values at key operating points
+            # across environments (dense_urban, urban, suburban, rural) and altitudes.
+            X_lit, Y_lit = LiteratureDataset.get_surrogate_anchor_points()
+
+            # Only include points within PARAM_BOUNDS (discard out-of-range)
+            in_bounds = np.all(
+                (X_lit >= lower) & (X_lit <= upper), axis=1
+            )
+            X_lit = X_lit[in_bounds]
+            Y_lit = Y_lit[in_bounds]
+
+            X = np.vstack([X_lit, X])
+            Y = np.vstack([Y_lit, Y])
+            print(f"  Added {len(X_lit)} literature anchor points "
+                  f"(Khawaja 2019 / Matolak 2017)", flush=True)
+
         return X, Y
 
     def train(self, X: np.ndarray, Y: np.ndarray, model_type: str = 'mlp'

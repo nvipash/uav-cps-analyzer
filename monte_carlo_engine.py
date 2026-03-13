@@ -101,8 +101,12 @@ class SimulationParams:
     # Spatial correlation of shadow fading (Gudmundson 1991 model)
     # rho = exp(-d_separation / decorrelation_distance)
     # Typical decorrelation distance: 50-200m urban, 100-500m suburban
-    shadow_correlation: float = 0.0        # 0=independent, 1=fully correlated
-    decorrelation_distance_m: float = 100.0  # Used if shadow_correlation < 0 (auto-compute)
+    shadow_correlation: float = 0.0        # 0=auto-compute from geometry, >0=explicit rho, <0 disables
+    decorrelation_distance_m: float = 100.0  # Used when shadow_correlation == 0 (auto-compute from path separation)
+
+    # Jammer physical parameters
+    jammer_height_m: float = 2.0    # jammer antenna height above ground [m]; use higher for vehicle/tower
+    jammer_bandwidth_mhz: float = 83.5  # jammer RF bandwidth for FHSS effectiveness calc (OcuSync 2.4 GHz = 83.5)
 
 
 @dataclass
@@ -184,9 +188,11 @@ def _simulate_with_normals(params: SimulationParams, normals: np.ndarray) -> Sim
     mp_loss_signal = mp_loss_jammer = 0.0
     if params.enable_multipath:
         mp_loss_signal = UrbanMultiPathCorrection.multi_path_loss_db(
-            params.signal_distance_m, params.environment, params.altitude_m)
+            params.signal_distance_m, params.environment, params.altitude_m,
+            h_jammer_m=params.jammer_height_m)
         mp_loss_jammer = UrbanMultiPathCorrection.multi_path_loss_db(
-            params.jammer_distance_m, params.environment, params.altitude_m)
+            params.jammer_distance_m, params.environment, params.altitude_m,
+            h_jammer_m=params.jammer_height_m)
 
     pl_signal = (model.path_loss(params.signal_distance_m, params.altitude_m, params.frequency_mhz)
                   + shadow_fading_signal + fading_margin + atm_loss_signal + mp_loss_signal)
@@ -215,7 +221,7 @@ def _simulate_with_normals(params: SimulationParams, normals: np.ndarray) -> Sim
         protocol = OcuSyncProtocol()
         analyzer = JammingEffectivenessAnalyzer(protocol)
         strategy = JammingStrategy(params.jamming_strategy)
-        fhss_effectiveness = analyzer.calculate_effectiveness(strategy, 83.5)
+        fhss_effectiveness = analyzer.calculate_effectiveness(strategy, params.jammer_bandwidth_mhz)
 
     effective_js = js_ratio if not params.fhss_enabled else js_ratio * fhss_effectiveness
     jam_prob = BERModel.jamming_success_probability(
@@ -325,11 +331,11 @@ def _simulate_single_iteration(args: Tuple[SimulationParams, int]) -> Simulation
     mp_loss_jammer = 0.0
     if params.enable_multipath:
         mp_loss_signal = UrbanMultiPathCorrection.multi_path_loss_db(
-            params.signal_distance_m, params.environment, params.altitude_m
-        )
+            params.signal_distance_m, params.environment, params.altitude_m,
+            h_jammer_m=params.jammer_height_m)
         mp_loss_jammer = UrbanMultiPathCorrection.multi_path_loss_db(
-            params.jammer_distance_m, params.environment, params.altitude_m
-        )
+            params.jammer_distance_m, params.environment, params.altitude_m,
+            h_jammer_m=params.jammer_height_m)
 
     # --- Path loss calculation (base + atmospheric + multi-path + fading) ---
     pl_signal = (model.path_loss(
@@ -374,7 +380,7 @@ def _simulate_single_iteration(args: Tuple[SimulationParams, int]) -> Simulation
         protocol = OcuSyncProtocol()
         analyzer = JammingEffectivenessAnalyzer(protocol)
         strategy = JammingStrategy(params.jamming_strategy)
-        fhss_effectiveness = analyzer.calculate_effectiveness(strategy, 83.5)
+        fhss_effectiveness = analyzer.calculate_effectiveness(strategy, params.jammer_bandwidth_mhz)
 
         # Doppler degradation of FHSS hop synchronization
         if params.target_velocity_ms > 0:

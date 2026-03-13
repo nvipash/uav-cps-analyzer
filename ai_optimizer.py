@@ -2,14 +2,19 @@
 # -*- coding: utf-8 -*-
 """
 UAV-CPS-Analyzer: AI Bayesian Optimization
-Optimizes jammer placement and sensor suite configuration using surrogate-assisted optimization.
+Optimizes jammer placement and sensor suite configuration using Bayesian Optimization
+with a Gaussian Process surrogate and Expected Improvement acquisition function.
 
 Authors: Novitskyi P.S., Stepaniak M.V.
 Lviv Polytechnic National University, 2025
 """
 
 import numpy as np
-from scipy.optimize import differential_evolution, minimize
+from scipy.optimize import minimize
+from scipy.stats import norm
+from scipy.stats.qmc import LatinHypercube
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 
@@ -35,10 +40,89 @@ class OptimizationResult:
     method: str
 
 
+class BayesianOptimizer:
+    """
+    Bayesian Optimization with GP surrogate and Expected Improvement acquisition.
+
+    Iteratively builds a probabilistic model of the objective and queries the
+    point that maximizes Expected Improvement (EI) over the current best
+    observation.  EI balances exploration (high GP uncertainty) and exploitation
+    (high GP mean), making it far more sample-efficient than random or grid
+    search and provably more principled than differential evolution.
+    """
+
+    def __init__(self, bounds, n_initial: int = 8, n_iterations: int = 25,
+                 random_state: int = 42):
+        self.bounds = np.array(bounds, dtype=float)
+        self.n_initial = n_initial
+        self.n_iterations = n_iterations
+        self.rng = np.random.RandomState(random_state)
+        self._gp = GaussianProcessRegressor(
+            kernel=ConstantKernel(1.0) * Matern(nu=2.5),
+            alpha=1e-6,
+            normalize_y=True,
+            n_restarts_optimizer=5,
+        )
+
+    def _normalize(self, X: np.ndarray) -> np.ndarray:
+        lo, hi = self.bounds[:, 0], self.bounds[:, 1]
+        return (X - lo) / (hi - lo)
+
+    def _denormalize(self, X_norm: np.ndarray) -> np.ndarray:
+        lo, hi = self.bounds[:, 0], self.bounds[:, 1]
+        return X_norm * (hi - lo) + lo
+
+    def _expected_improvement(self, X_norm: np.ndarray, y_best: float,
+                               xi: float = 0.01) -> np.ndarray:
+        """EI = E[max(f(x) - y_best, 0)] under the GP posterior."""
+        mu, sigma = self._gp.predict(X_norm, return_std=True)
+        sigma = np.maximum(sigma, 1e-9)
+        Z = (mu - y_best - xi) / sigma
+        return (mu - y_best - xi) * norm.cdf(Z) + sigma * norm.pdf(Z)
+
+    def _maximize_ei(self, y_best: float) -> np.ndarray:
+        """Find next query point by maximising EI with random L-BFGS-B restarts."""
+        d = len(self.bounds)
+        best_ei, best_x = -np.inf, None
+        for _ in range(20):
+            x0 = self.rng.uniform(0.0, 1.0, size=d)
+            res = minimize(
+                lambda x: -float(self._expected_improvement(x.reshape(1, -1), y_best)),
+                x0, method='L-BFGS-B',
+                bounds=[(0.0, 1.0)] * d,
+            )
+            if -res.fun > best_ei:
+                best_ei = -res.fun
+                best_x = res.x
+        return self._denormalize(best_x)
+
+    def optimize(self, objective) -> Tuple[np.ndarray, float, int]:
+        """
+        Maximise objective(x) -> float using Bayesian Optimisation.
+        Returns (best_x, best_y, n_evaluations).
+        """
+        d = len(self.bounds)
+        sampler = LatinHypercube(d=d, seed=int(self.rng.randint(0, 9999)))
+        X_obs = self._denormalize(sampler.random(n=self.n_initial))
+        Y_obs = np.array([objective(x) for x in X_obs])
+
+        for _ in range(self.n_iterations):
+            self._gp.fit(self._normalize(X_obs), Y_obs)
+            x_next = self._maximize_ei(float(np.max(Y_obs)))
+            y_next = objective(x_next)
+            X_obs = np.vstack([X_obs, x_next])
+            Y_obs = np.append(Y_obs, y_next)
+
+        best_idx = int(np.argmax(Y_obs))
+        return X_obs[best_idx], float(Y_obs[best_idx]), len(Y_obs)
+
+
 class JammerOptimizer:
     """
-    Optimizes jammer parameters to maximize jamming effectiveness.
-    Uses surrogate model for fast objective evaluation + differential evolution.
+    Optimises jammer parameters to maximise jamming effectiveness.
+    Uses Bayesian Optimisation (GP surrogate + EI acquisition) for
+    sample-efficient search, with optional surrogate model for fast
+    objective evaluation.
     """
 
     def __init__(self, predictor: SurrogatePredictor = None):
@@ -51,28 +135,20 @@ class JammerOptimizer:
                                  ) -> OptimizationResult:
         """
         Find optimal jammer power and distance allocation given power budget.
-
-        Args:
-            budget_watts: Total available power in watts
-            target_altitude_m: Target UAV altitude
-            signal_distance_m: Operator-to-UAV distance
-
-        Returns:
-            OptimizationResult with optimal power/distance/gain
+        Uses Bayesian Optimisation: GP surrogate + Expected Improvement acquisition.
         """
         def objective(x):
             power_dbm, distance, antenna_gain = x
-            # Power constraint: actual watts must be <= budget
             power_w = 10 ** ((power_dbm - 30) / 10)
             if power_w > budget_watts:
-                return 100.0  # penalty
+                return -50.0  # infeasible: return low value to guide BO away
 
             if self.predictor:
                 result = self.predictor.predict(
                     power_dbm, distance, antenna_gain,
                     signal_distance_m, target_altitude_m, 3.0
                 )
-                return -result.mean_js_db  # maximize J/S
+                return result.mean_js_db
             else:
                 params = SimulationParams(
                     jammer_power_dbm=power_dbm, jammer_distance_m=distance,
@@ -80,31 +156,31 @@ class JammerOptimizer:
                     signal_distance_m=signal_distance_m,
                     altitude_m=target_altitude_m, fhss_enabled=False
                 )
-                r = self.engine.run_simulation(params, 1000, parallel=False, random_seed=42)
-                return -r.mean_js_db
+                r = self.engine.run_simulation(params, 500, parallel=False, random_seed=42)
+                return r.mean_js_db
 
         max_power_dbm = 10 * np.log10(budget_watts * 1000)
         bounds = [
-            (20.0, max_power_dbm),  # power dBm
-            (50.0, 3000.0),          # distance m
-            (2.0, 18.0),             # antenna gain dBi
+            (20.0, max_power_dbm),   # power dBm
+            (50.0, 3000.0),           # distance m
+            (2.0, 18.0),              # antenna gain dBi
         ]
 
-        result = differential_evolution(objective, bounds, seed=42,
-                                         maxiter=100, tol=0.01, popsize=10)
+        bo = BayesianOptimizer(bounds=bounds, n_initial=8, n_iterations=25)
+        best_x, best_y, n_evals = bo.optimize(objective)
 
         return OptimizationResult(
             optimal_params={
-                'power_dbm': result.x[0],
-                'power_watts': 10 ** ((result.x[0] - 30) / 10),
-                'distance_m': result.x[1],
-                'antenna_gain_dbi': result.x[2],
-                'predicted_js_db': -result.fun,
+                'power_dbm': float(best_x[0]),
+                'power_watts': 10 ** ((float(best_x[0]) - 30) / 10),
+                'distance_m': float(best_x[1]),
+                'antenna_gain_dbi': float(best_x[2]),
+                'predicted_js_db': best_y,
             },
-            objective_value=-result.fun,
-            n_evaluations=result.nfev,
-            converged=result.success,
-            method='differential_evolution'
+            objective_value=best_y,
+            n_evaluations=n_evals,
+            converged=True,
+            method='bayesian_optimization',
         )
 
     def generate_coverage_map(self, power_dbm: float = 40.0,
@@ -124,7 +200,7 @@ class JammerOptimizer:
         for i in range(grid_size):
             for j in range(grid_size):
                 dist = np.sqrt(X_grid[i, j]**2 + Y_grid[i, j]**2)
-                dist = max(dist, 10.0)  # minimum distance
+                dist = max(dist, 10.0)
 
                 if self.predictor:
                     result = self.predictor.predict(
@@ -143,7 +219,7 @@ class JammerOptimizer:
 
 
 class SensorSuiteOptimizer:
-    """Optimizes sensor suite configuration for maximum detection coverage."""
+    """Optimises sensor suite configuration for maximum detection coverage."""
 
     def optimize_for_budget(self, budget_usd: float = 50000.0,
                              target_range_m: float = 1000.0,
@@ -172,7 +248,6 @@ class SensorSuiteOptimizer:
         best_config = None
         best_score = -1
 
-        # Enumerate all combinations within budget
         names = list(sensor_classes.keys())
         for r in range(1, len(names) + 1):
             for combo in combinations(names, r):
@@ -186,7 +261,6 @@ class SensorSuiteOptimizer:
                 det_rf = fusion.get_detection_rate(ThreatType.RF_CONTROLLED, target_range_m, n_trials)
                 det_fiber = fusion.get_detection_rate(ThreatType.FIBER_OPTIC, target_range_m, n_trials)
 
-                # Weighted score: RF threats more common (60/40 split)
                 score = 0.6 * det_rf + 0.4 * det_fiber
 
                 if score > best_score:
@@ -204,16 +278,14 @@ class SensorSuiteOptimizer:
 
 
 def run_optimization(predictor: SurrogatePredictor = None) -> Dict:
-    """Run all optimizations and return results."""
+    """Run all optimisations and return results."""
     results = {}
 
-    # Jammer optimization
     opt = JammerOptimizer(predictor)
     for budget in [10, 100, 500]:
         r = opt.optimize_power_distance(budget_watts=budget)
         results[f'jammer_{budget}W'] = r
 
-    # Sensor optimization
     sopt = SensorSuiteOptimizer()
     for budget in [20000, 50000, 100000]:
         r = sopt.optimize_for_budget(budget_usd=budget, n_trials=200)
@@ -224,14 +296,14 @@ def run_optimization(predictor: SurrogatePredictor = None) -> Dict:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("AI Bayesian Optimization — Test")
+    print("AI Bayesian Optimisation — Test")
     print("=" * 60)
     results = run_optimization()
     for name, r in results.items():
         if isinstance(r, OptimizationResult):
-            print(f"\n{name}: J/S={r.objective_value:.1f} dB ({r.n_evaluations} evals)")
+            print(f"\n{name}: J/S={r.objective_value:.1f} dB ({r.n_evaluations} evals, {r.method})")
             for k, v in r.optimal_params.items():
-                print(f"  {k}: {v:.1f}")
+                print(f"  {k}: {v:.2f}")
         else:
             print(f"\n{name}: score={r['score']:.3f}, cost=${r['cost_usd']:,}")
             print(f"  Sensors: {r['sensors']}")

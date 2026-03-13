@@ -192,29 +192,44 @@ class RiceFadingModel:
 
 class AltitudeDependentModel(PropagationModel):
     """
-    Altitude-dependent combined propagation model.
-    
-    Combines COST 231-Hata (urban) and Friis (free-space) based on UAV altitude.
-    Based on: Khawaja et al., "A Survey of Air-to-Ground Propagation Channel Modeling"
-              Al-Hourani et al., "Optimal LAP Altitude for Maximum Coverage"
-    
-    Model: L(h) = L_COST * (1 - alpha) + L_Friis * alpha
-    where alpha transitions from 0 (urban) to 1 (free-space) with altitude.
+    Altitude-dependent combined propagation model for UAV A2G scenarios.
+
+    Combines Al-Hourani A2G (low altitude) and Friis (free-space) based on UAV
+    altitude. Al-Hourani (2014) is used for the urban/ground component because it
+    is specifically designed for Air-to-Ground propagation and correctly handles
+    UAV altitude via LOS probability weighting.
+
+    COST 231-Hata is NOT used here for the A2G component because its valid domain
+    (h_base=30-200 m as terrestrial base station, h_mobile=1-10 m as handset,
+    f=1500-2000 MHz) does not apply to UAV elevation scenarios. It remains
+    available via COST231HataModel for purely terrestrial link calculations.
+
+    Model: L(h) = L_A2G * (1 - alpha) + L_Friis * alpha
+    where alpha transitions 0→1 linearly between h_urban and h_freespace.
+
+    References:
+    - Al-Hourani et al., "Optimal LAP Altitude for Maximum Coverage", IEEE WCL 2014
+    - Khawaja et al., "A Survey of A2G Propagation Channel Modeling", IEEE COMST 2019
     """
-    
+
     def __init__(self, h_urban: float = 100.0, h_freespace: float = 500.0,
-                 city_size: str = "medium"):
+                 city_size: str = "medium", environment: str = "urban"):
         """
         Args:
-            h_urban: Height below which urban model dominates (meters)
-            h_freespace: Height above which free-space model dominates (meters)
-            city_size: City size for COST 231 model
+            h_urban:      Altitude below which A2G model dominates (m)
+            h_freespace:  Altitude above which free-space model dominates (m)
+            city_size:    Retained for API compatibility (unused in A2G path)
+            environment:  Propagation environment for Al-Hourani model
         """
         self.h_urban = h_urban
         self.h_freespace = h_freespace
         self.friis = FriisModel()
-        self.cost231 = COST231HataModel(city_size)
+        self.cost231 = COST231HataModel(city_size)  # terrestrial use only
+        # Map 'open_field' → 'rural' since AlHouraniA2GModel defines 4 environments
+        a2g_env = environment if environment in AlHouraniA2GModel.ENVIRONMENT_PARAMS else 'rural'
+        self.a2g = AlHouraniA2GModel(a2g_env)
         self.rice = RiceFadingModel(k_factor=6.0)
+        self.environment = environment
     
     def _calculate_alpha(self, altitude_m: float) -> float:
         """
@@ -236,18 +251,15 @@ class AltitudeDependentModel(PropagationModel):
     
     def _altitude_k_factor(self, altitude_m: float) -> float:
         """
-        Calculate Rice K-factor based on altitude.
-        Higher altitude = more LOS = higher K-factor.
-        
-        Args:
-            altitude_m: UAV altitude in meters
-            
-        Returns:
-            K-factor in dB
+        Rice K-factor as a function of altitude.
+        Higher altitude → more LOS → higher K-factor.
+
+        Range calibrated to Khawaja (2019) Table VI (arXiv:1801.01656):
+          Urban 2.4 GHz interpolated: K ≈ 18 dB at h=50m, 22 dB at h=200m.
+          Lower bound reflects dense-urban near-ground (Ref[47]: K=-5..10 dB).
         """
-        # K-factor increases with altitude (more LOS)
-        k_min = 3.0  # dB at ground level
-        k_max = 15.0  # dB at high altitude
+        k_min = 10.0   # dB near ground — Khawaja (2019) Table VI Ref[47] upper end
+        k_max = 24.0   # dB at free-space altitude — Khawaja Table VI Ref[54] extrapolated
         alpha = self._calculate_alpha(altitude_m)
         return k_min + alpha * (k_max - k_min)
     
@@ -272,12 +284,14 @@ class AltitudeDependentModel(PropagationModel):
         # Get blending factor
         alpha = self._calculate_alpha(altitude_m)
         
-        # Calculate both models
+        # A2G component: Al-Hourani model (correct domain for UAV altitude scenarios)
         l_friis = self.friis.path_loss(distance_3d, frequency_mhz)
-        l_cost231 = self.cost231.path_loss(distance_m, frequency_mhz, h_base=altitude_m)
-        
-        # Combined model
-        path_loss = l_cost231 * (1 - alpha) + l_friis * alpha
+        l_a2g = self.a2g.path_loss(distance_m, altitude_m, frequency_mhz)
+
+        # Blended model: A2G at low altitude, Friis at high altitude
+        # (Al-Hourani already approaches Friis at high elevations, so this
+        # blending adds conservative consistency at extreme altitudes)
+        path_loss = l_a2g * (1 - alpha) + l_friis * alpha
         
         # Add fading if requested
         if include_fading:
@@ -387,54 +401,77 @@ class UrbanMultiPathCorrection:
     Models additional losses from multiple reflections, scattering, and diffraction.
 
     Based on:
-    - ITU-R P.1411-12 short-range outdoor models
-    - Saunders & Aragón-Zavala "Antennas and Propagation for Wireless Communication Systems"
+    - ITU-R P.1411-12 (2019) §4.2.1 dual-slope outdoor path loss model
+    - Saunders & Aragón-Zavala, "Antennas and Propagation for Wireless
+      Communication Systems", 2nd ed. (2007), §4.5 (Fresnel breakpoint)
+    - Al-Hourani et al. (2014) for altitude-dependent LOS correction
     """
 
     @staticmethod
     def multi_path_loss_db(distance_m: float, environment: str = 'urban',
-                            altitude_m: float = 100.0) -> float:
+                            altitude_m: float = 100.0,
+                            h_jammer_m: float = 2.0) -> float:
         """
-        Additional NLOS loss beyond Friis/COST 231 due to multi-path effects.
+        Additional NLOS loss beyond Friis due to multipath effects.
 
-        Calibrated against validation residuals from Adamy/Poisel/Skolnik
-        long-range scenarios where base Al-Hourani model overshoots by ~30-40 dB.
-        Uses asymmetric loss model: jammer paths (typically shorter) get less
-        multi-path, signal paths (typically longer) get more — net reduces J/S
-        for long-range scenarios as expected by EW literature.
+        Uses the ITU-R P.1411-12 dual-slope model with published path-loss
+        exponents (n1 below Fresnel breakpoint, n2 above). The Fresnel
+        breakpoint d_BP = 4·h_tx·h_rx·f/c (Saunders §4.5) depends on antenna
+        heights and frequency. The excess over free-space (Friis) is returned
+        so the correction composes correctly with the base Al-Hourani model.
 
         Args:
-            distance_m: Distance in meters
+            distance_m:  Distance in meters
             environment: dense_urban | urban | suburban | rural
-            altitude_m: UAV altitude
+            altitude_m:  UAV altitude in meters
+            h_jammer_m:  Jammer antenna height above ground in meters (default 2 m
+                         for ground-mounted portable system; use higher values for
+                         vehicle-mounted or elevated jammers)
 
         Returns:
-            Additional loss in dB (always positive)
+            Additional loss in dB (always ≥ 0)
         """
         d_km = max(distance_m / 1000.0, 0.01)
 
-        # Environment-specific coefficients
-        # Tuned to bring long_range MAPE from ~97% down to ~30%
-        coefficients = {
-            'dense_urban': {'a': 8.0, 'b': 12.0, 'd_break': 2.0},
-            'urban':       {'a': 6.0, 'b': 10.0, 'd_break': 2.0},
-            'suburban':    {'a': 3.0, 'b': 6.0,  'd_break': 3.0},
-            'rural':       {'a': 1.0, 'b': 2.0,  'd_break': 5.0},
+        # Dual-slope path-loss exponents for A2G residual correction at 2.4 GHz
+        # (beyond the Al-Hourani base model).
+        # n1: exponent below Fresnel breakpoint; n2: exponent above breakpoint.
+        # Derived from WINNER+ D1.1.2 (2008) Table 4-2 UMa/UMi NLOS exponents,
+        # scaled to 2.4 GHz residual role. Ordering is physically correct:
+        # dense_urban > urban > suburban > rural (more clutter → more excess loss).
+        ITU_COEFFS = {
+            'dense_urban': {'n1': 2.25, 'n2': 3.75, 'sigma': 5.5},
+            'urban':       {'n1': 2.18, 'n2': 3.48, 'sigma': 4.6},
+            'suburban':    {'n1': 2.10, 'n2': 2.75, 'sigma': 4.5},
+            'rural':       {'n1': 2.00, 'n2': 2.30, 'sigma': 3.0},
         }
-        c = coefficients.get(environment, coefficients['urban'])
+        c = ITU_COEFFS.get(environment, ITU_COEFFS['urban'])
 
-        # Two-slope model: small at short range, larger at long range
-        # base = a + b*log10(max(1, d/d_break))
-        # This gives ~a near close range, growing super-logarithmically beyond breakpoint
-        if d_km <= c['d_break']:
-            base_loss = c['a'] * d_km / c['d_break']
+        # Fresnel breakpoint: d_BP = 4·h_jammer·h_uav·f/c (Saunders §4.5)
+        freq_ghz = 2.437       # 2.4 GHz ISM band centre
+        d_break_km = 4.0 * h_jammer_m * max(altitude_m, 1.0) * freq_ghz / 300.0
+
+        # Reference free-space loss at 1 m (ITU-R P.525-4 at freq_ghz)
+        L_ref_db = 32.45 + 20.0 * np.log10(freq_ghz * 1000.0) - 60.0
+
+        # Dual-slope total path loss (ITU-R P.1411-12 eq. 1)
+        if d_km <= d_break_km:
+            L_total_db = L_ref_db + 10.0 * c['n1'] * np.log10(d_km / 0.001)
         else:
-            base_loss = c['a'] + c['b'] * np.log10(d_km / c['d_break'])
+            L_break_db = L_ref_db + 10.0 * c['n1'] * np.log10(d_break_km / 0.001)
+            L_total_db = L_break_db + 10.0 * c['n2'] * np.log10(d_km / d_break_km)
 
-        # Altitude reduction: higher altitude = less multi-path (more LOS)
-        altitude_factor = max(0.2, 1.0 - altitude_m / 600.0)
+        # Friis baseline at the same distance (ITU-R P.525-4)
+        L_friis_db = 32.45 + 20.0 * np.log10(freq_ghz * 1000.0) + 20.0 * np.log10(d_km)
 
-        return max(0.0, base_loss * altitude_factor)
+        # Excess loss = multipath correction (always ≥ 0 by physics)
+        excess_loss_db = max(0.0, L_total_db - L_friis_db)
+
+        # Altitude correction: P_LOS → 1 as altitude ↑, reducing multipath
+        # (Al-Hourani 2014: elevation angle increases → fewer obstructions)
+        altitude_factor = max(0.1, 1.0 - min(0.9, altitude_m / 500.0))
+
+        return max(0.0, excess_loss_db * altitude_factor)
 
 
 class ModulationType(Enum):

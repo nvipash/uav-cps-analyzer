@@ -54,6 +54,11 @@ class ThreatDataGenerator:
     """
     Generates labeled training data from sensor models with realistic noise.
     Simulates sensor readings for known threat types across varying conditions.
+
+    ВАЖЛИВО — дані: усі зразки згенеровані процедурно на основі імовірнісних
+    моделей сенсорів (cps_analyzer.py). Точність 99.6% виміряна на синтетичних
+    тестових даних, згенерованих тими самими моделями. Реальна точність залежить
+    від калібрування відносно реального сенсорного обладнання та польових даних.
     """
 
     def __init__(self):

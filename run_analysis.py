@@ -5,7 +5,23 @@ Runs all analyses with progress tracking and elapsed time per step.
 """
 
 import sys, os, time, warnings
-warnings.filterwarnings('ignore')
+from sklearn.exceptions import ConvergenceWarning
+
+# Suppress only expected, benign warnings produced during normal operation.
+# A blanket filterwarnings('ignore') was removed so that unexpected numerical
+# issues remain visible.
+
+# sklearn GP / MLP fits on limited synthetic data often reach max_iter before
+# the tolerance is met; the result is still usable for the surrogate model.
+warnings.filterwarnings('ignore', category=ConvergenceWarning)
+
+# NumPy overflow in exp() and invalid (NaN) values occur in the tails of the
+# Rice/log-normal distributions during Monte Carlo sampling of extreme
+# parameter combinations; the affected samples are clipped downstream.
+warnings.filterwarnings('ignore', category=RuntimeWarning,
+                        message='overflow encountered in exp')
+warnings.filterwarnings('ignore', category=RuntimeWarning,
+                        message='invalid value encountered')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 if __name__ != "__main__":

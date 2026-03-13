@@ -14,10 +14,14 @@ Modules:
     - monte_carlo_engine: Monte Carlo simulation engine with bootstrap CIs and convergence
     - cps_analyzer: Cyber-Physical Systems analyzer with sensor fusion
     - sensitivity: Global sensitivity analysis (Sobol indices, Morris method)
-    - validation: Formal validation framework (ASME V&V 20)
+    - validation: Formal validation framework (ASME V&V 20) — includes GROUP H field data
     - reporting: LaTeX table generation and statistical summary reports
     - visualization: Publication-quality figure generation
     - config: Configuration and UAV/jammer databases
+    - literature_dataset: A2G channel data from Khawaja (2019) arXiv:1801.01656
+                          Tables V/VI (path loss exponents, Rice K-factors) for
+                          ML calibration; values labeled by data_origin (measured /
+                          interpolated / physics-estimated)
 
 Authors: Novitskyi P.S., Stepaniak M.V.
 Lviv Polytechnic National University, 2025

@@ -8,6 +8,15 @@ Based on:
 - D. Torrieri, "Principles of Spread-Spectrum Communication Systems", 4th ed., 2018
 - DJI OcuSync transmission system specifications
 
+ВАЖЛИВО — обмеження моделі:
+Жодних верифікованих відкритих вимірювань ефективності завади DJI OcuSync
+знайдено не було (literature_dataset.get_fhss_vulnerability_points() повертає
+порожній список). Усі результати аналізу FHSS є теоретичними оцінками на основі
+аналітичних формул (Torrieri, Poisel, Adamy). Константа PREDICTION_ACCURACY=0.85
+для протокол-орієнтованої завади є інженерною оцінкою без верифікованого джерела.
+Результати FHSS-симуляцій слід позначати як "hypothetical model behavior",
+а не як "validated effectiveness".
+
 Authors: Novitskyi P.S., Stepaniak M.V.
 Lviv Polytechnic National University, 2025
 """
@@ -290,59 +299,80 @@ class JammingEffectivenessAnalyzer:
     
     def calculate_effectiveness(self, strategy: JammingStrategy,
                                 jammer_bandwidth_mhz: float,
-                                tracking_delay_ms: float = 0.0) -> float:
+                                tracking_delay_ms: float = 0.0,
+                                js_db: float = 15.0,
+                                sweep_rate_hz: float = 100.0) -> float:
         """
-        Calculate jamming effectiveness (probability of successful jam).
-        
+        Calculate jamming effectiveness (probability of successful jam per hop).
+
         Args:
             strategy: Jamming strategy
             jammer_bandwidth_mhz: Jammer bandwidth in MHz
-            tracking_delay_ms: Delay in tracking hops (for follower)
-            
+            tracking_delay_ms: Delay in tracking hops (for follower/protocol-aware)
+            js_db: Total Jamming-to-Signal ratio in dB at target (used for broadband)
+            sweep_rate_hz: Sweep rate in full-band passes per second (for sweep)
+
         Returns:
             Effectiveness as probability (0-1)
         """
-        total_bandwidth = (self.protocol.params.band_end_mhz - 
-                         self.protocol.params.band_start_mhz)
+        total_bandwidth = (self.protocol.params.band_end_mhz -
+                           self.protocol.params.band_start_mhz)
         channel_bw = self.protocol.params.channel_bandwidth_mhz
         n_channels = self.protocol.params.n_channels
         dwell_time = self.protocol.params.dwell_time_ms
-        
+
         if strategy == JammingStrategy.BROADBAND:
-            # Broadband jammer spreads power across entire band.
-            # Against FHSS: power is diluted across all channels, so per-channel
-            # power density = total_power / n_channels. Effectiveness is reduced
-            # compared to static because the jammer cannot concentrate energy.
-            if jammer_bandwidth_mhz >= total_bandwidth:
-                # Full band coverage but power diluted across n_channels
-                # Effective J/S per channel drops by 10*log10(n_channels) ~ 16 dB for 40ch
-                # This makes broadband less effective than against static channel
-                return 0.50  # 50% — covers all hops but each at reduced power
-            else:
-                coverage = jammer_bandwidth_mhz / total_bandwidth
-                return coverage * 0.50
-        
+            # Broadband jammer spreads power P_j over B_j MHz; only fraction
+            # B_ch/B_j reaches each FHSS channel — PSD spreading loss.
+            # Adamy (2015) ch.5; Proakis (2007) eq. 8.2-28
+            spreading_loss_db = 10.0 * np.log10(
+                max(jammer_bandwidth_mhz, channel_bw) / channel_bw
+            )
+            js_per_channel_db = js_db - spreading_loss_db
+            coverage = min(1.0, jammer_bandwidth_mhz / total_bandwidth)
+            if BERModel is not None:
+                per_channel_success = BERModel.jamming_success_probability(
+                    js_per_channel_db
+                )
+                return min(1.0, coverage * per_channel_success)
+            # Fallback without BERModel
+            return coverage * (0.9 if js_per_channel_db > 10.0 else
+                               0.5 if js_per_channel_db > 0.0 else 0.1)
+
         elif strategy == JammingStrategy.NARROWBAND:
-            # Only effective if happens to hit current channel
-            return 1.0 / n_channels  # ~2.5% for 40 channels
-        
+            # Narrowband jammer occupies one frequency; FHSS selects uniformly.
+            # P(hit) = 1/n_channels — exact combinatorial formula.
+            return 1.0 / n_channels  # = 0.025 for 40 channels
+
         elif strategy == JammingStrategy.SWEEP:
-            # Depends on sweep rate vs hop rate
-            channels_covered = jammer_bandwidth_mhz / channel_bw
-            sweep_effectiveness = channels_covered / n_channels
-            return min(0.45, sweep_effectiveness)
-        
+            # Time the sweeping jammer dwells on each channel per full sweep.
+            # P(jammer active on channel during FHSS dwell) = T_ch / T_dwell
+            # Poisel (2008) §6.2; Adamy (2015) ch.4
+            sweep_dwell_per_ch_ms = 1000.0 / (sweep_rate_hz * n_channels)
+            return min(1.0, sweep_dwell_per_ch_ms / dwell_time)
+
         elif strategy == JammingStrategy.FOLLOWER:
-            # Depends on tracking delay vs dwell time
+            # Jammer detects hop then retunes; effective window = dwell - reaction.
+            # Poisel (2008) §7.3: effectiveness = (T_dwell - T_reaction) / T_dwell
             if tracking_delay_ms >= dwell_time:
-                return 0.1  # Too slow to track
-            delay_factor = 1 - (tracking_delay_ms / dwell_time)
-            return 0.65 * delay_factor
-        
+                return 0.0  # Jammer too slow — arrives after channel already changed
+            jam_fraction = 1.0 - tracking_delay_ms / dwell_time
+            return max(0.0, jam_fraction)
+
         elif strategy == JammingStrategy.PROTOCOL_AWARE:
-            # Can predict some hops but protocol is proprietary
-            return 0.75  # Limited by closed protocol
-        
+            # LFSR-based prediction allows pre-positioning before the next hop.
+            # With a known 16-bit LFSR polynomial the sequence is fully
+            # deterministic once the seed is captured.
+            # ENGINEERING ESTIMATE — UNCITED: 0.85 accounts for seed-capture
+            # failures and residual timing jitter. No open-access measurement
+            # campaign for DJI OcuSync protocol-aware jamming was found.
+            # Sensitivity range: [0.70, 0.95] — results scale linearly.
+            PREDICTION_ACCURACY = 0.85  # engineering estimate — uncited
+            pre_position_time_ms = max(0.0, dwell_time - tracking_delay_ms)
+            timing_success = min(1.0, pre_position_time_ms / dwell_time)
+            effectiveness = PREDICTION_ACCURACY * timing_success
+            return max(0.0, min(0.95, effectiveness))
+
         return 0.0
     
     def compare_strategies(self, jammer_bandwidth_mhz: float = 83.5) -> dict:
@@ -361,7 +391,8 @@ class JammingEffectivenessAnalyzer:
             multiplier = self.calculate_power_multiplier(strategy)
             effectiveness = self.calculate_effectiveness(
                 strategy, jammer_bandwidth_mhz,
-                tracking_delay_ms=0.5 if strategy == JammingStrategy.FOLLOWER else 0
+                tracking_delay_ms=0.5 if strategy == JammingStrategy.FOLLOWER else 0,
+                js_db=20.0  # typical operating J/S for strategy comparison
             )
             
             results[strategy.value] = {
@@ -416,11 +447,12 @@ class ChannelSimulator:
         # Generate hop sequence
         sequence = self.protocol.generate_hop_sequence(duration_s)
         
-        # Get jamming effectiveness
+        # Get jamming effectiveness (pass actual J/S so broadband uses correct PSD)
         effectiveness = self.analyzer.calculate_effectiveness(
             jamming_strategy,
             jammer_bandwidth_mhz=83.5,
-            tracking_delay_ms=0.5
+            tracking_delay_ms=0.5,
+            js_db=js_ratio_db
         )
         
         # Simulate each hop using BER-based soft degradation

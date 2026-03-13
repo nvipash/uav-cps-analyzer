@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
 import json
+import math
 import os
 
 
@@ -167,7 +168,7 @@ class JammerSpecification:
     cost_usd: float = 5000
     
     def __post_init__(self):
-        self.power_dbm = 10 * (3 + __import__('math').log10(self.power_w))  # W to dBm
+        self.power_dbm = 30 + 10 * math.log10(self.power_w)  # W to dBm
 
 
 # Database of jammer systems
@@ -250,42 +251,54 @@ class PropagationConfig:
     default_frequency_mhz: float = 2437.0
 
 
-# Environment presets for multi-environment comparative studies
+# Environment presets for multi-environment comparative studies.
+#
+# Rice K-factor values from Khawaja et al. (2019) Table VI (arXiv:1801.01656):
+#   Measured bands: L-band (~970 MHz) and C-band (~5.3 GHz), field campaign Ref[54].
+#   Ref[54] urban/suburban: K = 12 dB (L-band), 27.4 dB (C-band)
+#   Interpolated to 2.4 GHz (log-power interpolation, weight=0.534): K ≈ 20 dB
+#   Dense urban: Ref[47] (urban near airports) K = -5 to 10 dB → use upper end
+#   Suburban/rural K estimated above urban (more LOS-dominant terrain)
+#
+# Shadow fading std from Khawaja (2019) Table V Ref[54]:
+#   L-band sigma = 2.6–3.1 dB; C-band sigma = 2.9–3.2 dB; midpoint ≈ 3.0 dB
+#   These are lower than previously coded values — Khawaja measured tighter
+#   fading distributions for elevated UAV scenarios than terrestrial models.
 ENVIRONMENT_PRESETS: Dict[str, dict] = {
     'dense_urban': {
         'city_size': 'large',
-        'shadow_fading_std_db': 10.0,
+        'shadow_fading_std_db': 3.20,
         'h_urban': 120.0,
         'h_freespace': 600.0,
-        'rice_k_factor_db': 3.0,
+        'rice_k_factor_db': 10.0,  # Khawaja (2019) Table VI Ref[47]: K=-5..10 dB, upper end
     },
     'urban': {
         'city_size': 'medium',
-        'shadow_fading_std_db': 8.0,
+        'shadow_fading_std_db': 2.96,
         'h_urban': 100.0,
         'h_freespace': 500.0,
-        'rice_k_factor_db': 6.0,
+        'rice_k_factor_db': 20.0,  # Khawaja (2019) Table VI Ref[54]: 12 dB (L) / 27.4 dB (C), interp→2.4 GHz
     },
     'suburban': {
         'city_size': 'small',
-        'shadow_fading_std_db': 6.0,
+        'shadow_fading_std_db': 2.75,
         'h_urban': 80.0,
         'h_freespace': 400.0,
-        'rice_k_factor_db': 9.0,
+        'rice_k_factor_db': 22.0,  # Physics-estimated above urban (less clutter); Khawaja (2019) base
     },
     'rural': {
         'city_size': 'small',
-        'shadow_fading_std_db': 4.0,
+        'shadow_fading_std_db': 3.10,
         'h_urban': 50.0,
         'h_freespace': 200.0,
-        'rice_k_factor_db': 12.0,
+        'rice_k_factor_db': 24.0,  # Physics-estimated; Khawaja (2019) Table V Ref[98] n=2.0 rural base
     },
     'open_field': {
         'city_size': 'small',
-        'shadow_fading_std_db': 3.0,
+        'shadow_fading_std_db': 2.80,
         'h_urban': 30.0,
         'h_freespace': 100.0,
-        'rice_k_factor_db': 15.0,
+        'rice_k_factor_db': 26.0,  # Physics-estimated maximum LOS; Khawaja (2019) base
     },
 }
 

@@ -53,18 +53,18 @@ The system has three layers:
 ### Layer 2: Statistical & Validation (3 modules)
 
 - **sensitivity.py** — Global sensitivity analysis: Sobol indices (first-order S1, total-order ST), Morris method elementary effects screening, parallelized via multiprocessing
-- **validation.py** — ASME V&V 20 framework: 40 validation cases from 7 sources (Adamy 2015, Poisel 2011, Skolnik 2008, FCC ID, Beason 2021, Schiller 2023, ITU-R P.1411); per-domain MAPE breakdown (close/medium/long range, regulatory, behavioral); 7 internal consistency checks
+- **validation.py** — ASME V&V 20 framework: 48 validation cases from 6 verified sources (Adamy 2015, Poisel 2011, Skolnik 2008, FCC ID regulatory, C-UAS surveys/ITU-R P.1411, Khawaja 2019 A2G field measurements); per-domain MAPE breakdown (close/medium/long range, regulatory, field_measurement, field_meas_estimated); 7 internal consistency checks
 - **reporting.py** — LaTeX table generation (booktabs format), Markdown summary reports with timestamps and reproducibility metadata
 
-### Layer 3: AI/ML & Advanced (11 modules)
+### Layer 3: AI/ML & Advanced (11 modules — 8 genuine AI/ML, 3 simulation/viz)
 
-- **ai_surrogate.py** — Neural network surrogate model (MLP/GP/ensemble) trained on Monte Carlo outputs; achieves R²≥0.96 with 200 training points and 2000-3000× speedup
-- **ai_optimizer.py** — Bayesian optimization (differential evolution + surrogate) for jammer/sensor placement; sensor suite optimization with budget constraints
+- **ai_surrogate.py** — Neural network surrogate model (MLP/GP/ensemble) trained on Monte Carlo outputs; achieves R²≥0.96 with 200 training points and 2000-3000× speedup *(metric on synthetic test data)*
+- **ai_optimizer.py** — Bayesian Optimization with Gaussian Process surrogate (Matérn-5/2 kernel) and Expected Improvement acquisition; Latin Hypercube initial sampling, L-BFGS-B EI maximization with 20 random restarts; sensor suite optimization with budget constraints
 - **ai_propagation_correction.py** — ML correction of propagation model: Gradient Boosting on residuals from 20+ reference points
 - **ai_adaptive_jamming.py** — Reinforcement learning agent (Q-learning) for jamming strategy selection; supports adversarial environment and multi-objective reward (jam_rate + power_efficiency + stealth)
-- **ai_threat_classifier.py** — Ensemble NN (MLP + Random Forest + Gradient Boosting) for threat classification; 24-feature input including time-series, spectral, behavioral; achieves 99.6% accuracy vs 32% for pure Dempster-Shafer
+- **ai_threat_classifier.py** — Ensemble NN (MLP + Random Forest + Gradient Boosting) for threat classification; 24-feature input including time-series, spectral, behavioral; achieves 99.6% accuracy vs 32% for pure Dempster-Shafer *(metric on synthetic test data)*
 - **ai_uncertainty_active.py** — Multi-output uncertainty propagation with proper Polynomial Chaos Expansion (Hermite polynomials, order 3); active learning loop with GP uncertainty sampling
-- **multi_jammer_coordination.py** *(new)* — Coordinated multi-jammer networks: power combining at target, coverage heatmaps, genetic algorithm optimizer for placement
+- **multi_jammer_coordination.py** *(new)* — Coordinated multi-jammer networks: power combining at target, coverage heatmaps; full genetic algorithm optimizer (elitism + tournament selection + arithmetic blend crossover + mutation) for placement
 - **swarm_scenarios.py** *(new)* — UAV swarm attacks: 4 types (cooperative, decentralized, kamikaze, decoy+strike); saturation curve analysis vs jammer network capacity
 - **ai_coevolution.py** *(new)* — Adversarial AI-vs-AI training: simultaneous Q-learning of jammer and FHSS defender; Nash equilibrium estimation; cycle detection
 - **trajectory_scenarios.py** *(new)* — Time-varying UAV trajectories: linear approach, fly-by, circular orbit, Bezier evasive; J/S evolution over time
@@ -100,9 +100,10 @@ FHSS emulation parameters:
 - Hop rate: 500 Hz (dwell time 2 ms)
 - LFSR-16 with maximum-length taps [16, 15, 13, 4]
 
-Note: This is a behavioral emulation based on public regulatory data (FCC ID),
-manufacturer specifications (DJI), and reverse-engineering studies (Beason 2021,
-Schiller 2023). The actual OcuSync protocol is proprietary.
+Note: This is a behavioral emulation based on public regulatory data (FCC ID)
+and manufacturer specifications (DJI). The actual OcuSync protocol is proprietary.
+References "Beason et al. (2021)" and "Schiller et al. (2023)" cited in earlier
+versions could not be confirmed as real publications and have been removed.
 
 ### `monte_carlo_engine.py`
 
@@ -231,7 +232,7 @@ Steps:
 
 ## Output Artifacts
 
-Generated in `output_v1.2/`:
+Generated in `output/`:
 - 5 publication figures (PDF + PNG, 300 DPI)
 - 3 LaTeX tables (table3.tex, table4.tex, table7.tex)
 - Markdown summary report (summary_report.md)
@@ -244,12 +245,27 @@ Generated in `output_v1.2/`:
 - u_val = sqrt(u_model² + u_exp²)
 - PASS if |E| < u_val
 
-40 validation cases organized into 5 domains:
-- close_range (4 cases): MAPE 7-12%, PASS rate 100%
-- medium_range (14 cases): MAPE 30-40%
-- long_range (7 cases): MAPE 80-100% — needs calibration
-- regulatory (5 cases): FCC ID measurements
-- behavioral (4 cases): FHSS protocol verification
+48 validation cases organized into 6 domains (actual results, v1.2):
+- close_range (5 cases): MAPE ~24%, PASS rate 0% — model underpredicts urban path loss at <500 m
+- medium_range (17 cases): MAPE **25.8%**, PASS rate **71%** — best-calibrated domain
+- long_range (9 cases): MAPE ~45%, PASS rate 14% — propagation model limitation beyond 5 km
+- regulatory (5 cases): MAPE ~98% — FCC measurements assume closer signal sources than model defaults
+- field_measurement (5 cases): Khawaja (2019) A2G — urban, interpolated from measured L/C-band exponents
+- field_meas_estimated (7 cases): Khawaja (2019) A2G — suburban/rural, physics-estimated exponents (weaker ground truth)
+
+> **Note on signal source parameters:** Adamy/Poisel/Skolnik cases assume a tactical radio
+> signal source (P = 10 W, G = 0 dBi). FCC/UAV cases use UAV transmitter parameters
+> (P = 20 dBm, G = 2 dBi). See `_make_case()` in `validation.py` for details.
+>
+> **Note on removed GROUP E:** FHSS/OcuSync behavioral cases were removed — no verified
+> open-access OcuSync-specific measurements exist (see `literature_dataset.py`).
+>
+> **Note on sensor detection probabilities (cps_analyzer.py):** Values Pd=0.99/0.85/0.95/0.80
+> and all FHSS PREDICTION_ACCURACY=0.85 are engineering estimates without verified citations.
+>
+> **Note on AI/ML modules:** All training data is synthetic (Monte Carlo generated).
+> Reported accuracy metrics reflect simulation approximation quality, not physical
+> accuracy. For physical accuracy, refer to the validation results above.
 
 ## Extension Guide
 

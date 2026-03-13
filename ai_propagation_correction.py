@@ -21,12 +21,14 @@ from typing import Dict, List, Tuple
 
 try:
     from monte_carlo_engine import MonteCarloEngine, SimulationParams
-    from propagation_models import AltitudeDependentModel, AlHouraniA2GModel
+    from propagation_models import AltitudeDependentModel, AlHouraniA2GModel, FriisModel
+    from literature_dataset import LiteratureDataset
 except ImportError:
     import sys
     sys.path.insert(0, '.')
     from monte_carlo_engine import MonteCarloEngine, SimulationParams
-    from propagation_models import AltitudeDependentModel, AlHouraniA2GModel
+    from propagation_models import AltitudeDependentModel, AlHouraniA2GModel, FriisModel
+    from literature_dataset import LiteratureDataset
 
 
 @dataclass
@@ -53,68 +55,66 @@ class PropagationCorrector:
 
     def _generate_reference_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Generate training data: model predictions vs reference values.
-        Uses synthetic reference points derived from literature empirical formulas.
+        Generate training data: model predictions vs literature-measured reference.
+
+        Еталонні значення обчислені з РЕАЛЬНО ВИМІРЯНИХ показників path loss exponent
+        (n_LOS, n_NLOS) з польових кампаній Khawaja et al. (2019) та Matolak & Sun (2017).
+        Замість синтетичної формули Фріса (n=2.0 скрізь) тепер використовуються
+        середовищно-залежні та висотно-залежні виміряні значення n.
+
+        Джерела: Khawaja (2019) IEEE Commun. Surveys Tuts. Tables 3–5;
+                 Matolak & Sun (2017) IEEE Trans. Veh. Technol.
 
         Returns:
             (features, model_predictions, reference_values)
         """
-        # Scenarios with known approximate J/S from literature
-        # Format: (power_W, j_dist, s_dist, alt, gain, environment, ref_js)
-        reference_scenarios = [
-            # Close range portable (Adamy 2015)
-            (10,   200, 3000,  50,  6, 'urban', 55.0),
-            (10,   500, 5000, 100,  6, 'urban', 45.0),
-            (10,  1000, 5000, 100,  6, 'urban', 35.0),
-            (10,  1500, 5000, 150,  6, 'urban', 28.0),
-            (10,  2000, 5000, 200,  6, 'urban', 22.0),
-            # Mobile systems (Poisel 2011)
-            (100,  500, 5000, 100, 10, 'urban', 60.0),
-            (100, 1000, 8000, 150, 10, 'urban', 48.0),
-            (100, 2000, 8000, 200, 10, 'urban', 38.0),
-            (100, 3000, 8000, 200, 10, 'urban', 30.0),
-            (100, 4000, 10000, 250, 10, 'urban', 25.0),
-            # High-power stationary (Skolnik 2008)
-            (500, 1000, 10000, 200, 15, 'urban', 58.0),
-            (500, 2000, 10000, 300, 15, 'urban', 48.0),
-            (500, 3000, 10000, 300, 15, 'urban', 42.0),
-            (500, 5000, 10000, 400, 15, 'urban', 32.0),
-            # Suburban scenarios (lower path loss)
-            (10,   500, 5000, 100,  6, 'suburban', 50.0),
-            (100, 2000, 8000, 200, 10, 'suburban', 42.0),
-            (500, 3000, 10000, 300, 15, 'suburban', 48.0),
-            # Rural / open field
-            (10,   500, 5000, 100,  6, 'rural', 52.0),
-            (100, 2000, 8000, 200, 10, 'rural', 45.0),
-            (500, 3000, 10000, 300, 15, 'rural', 50.0),
-        ]
+        FREQ_MHZ      = 2437.0
+        SIG_POWER_DBM = 20.0   # DJI controller 100 mW
+        SIG_GAIN_DBI  = 2.0
 
-        n = len(reference_scenarios)
-        features = np.zeros((n, 7))  # power, j_dist, s_dist, alt, gain, env_code, los_prob
+        # Load scenarios with measured reference J/S values
+        lit_scenarios = LiteratureDataset.get_a2g_training_scenarios()
+
+        n = len(lit_scenarios)
+        features   = np.zeros((n, 7))  # power, j_dist, s_dist, alt, gain, env_code, los_prob
         model_preds = np.zeros(n)
-        ref_values = np.zeros(n)
+        ref_values  = np.zeros(n)
 
-        env_map = {'urban': 0, 'suburban': 1, 'rural': 2}
+        env_map = {'dense_urban': -1, 'urban': 0, 'suburban': 1, 'rural': 2, 'open_field': 3}
 
-        for i, (pw, jd, sd, alt, gain, env, ref_js) in enumerate(reference_scenarios):
-            power_dbm = 10 * np.log10(pw * 1000)
+        for i, s in enumerate(lit_scenarios):
+            power_dbm = 10.0 * np.log10(s['power_w'] * 1000.0)
+            jd  = s['j_dist']
+            sd  = s['s_dist']
+            alt = s['alt']
+            gain = s['gain']
+            env  = s['env']
 
-            # Run model prediction
-            params = SimulationParams(
+            # Al-Hourani model prediction via Monte Carlo
+            sim_params = SimulationParams(
                 jammer_power_dbm=power_dbm, jammer_distance_m=jd,
-                jammer_antenna_gain_dbi=gain, signal_distance_m=sd,
+                jammer_antenna_gain_dbi=gain,
+                signal_power_dbm=SIG_POWER_DBM,
+                signal_distance_m=sd,
+                signal_antenna_gain_dbi=SIG_GAIN_DBI,
+                frequency_mhz=FREQ_MHZ,
                 altitude_m=alt, fhss_enabled=False,
-                propagation_model='al_hourani', environment=env
+                propagation_model='al_hourani', environment=env,
             )
-            result = self.engine.run_simulation(params, 2000, parallel=False, random_seed=42 + i)
+            result = self.engine.run_simulation(
+                sim_params, 2000, parallel=False, random_seed=42 + i
+            )
 
-            # LOS probability for this geometry
+            # Еталон: J/S з ВИМІРЯНИХ показників path loss (Khawaja / Matolak)
+            ref_js = s['ref_js']
+
+            # LOS probability for feature engineering
             a2g = AlHouraniA2GModel(env)
             los_prob = a2g.los_probability(alt, jd)
 
-            features[i] = [power_dbm, jd, sd, alt, gain, env_map.get(env, 0), los_prob]
+            features[i]   = [power_dbm, jd, sd, alt, gain, env_map.get(env, 0), los_prob]
             model_preds[i] = result.mean_js_db
-            ref_values[i] = ref_js
+            ref_values[i]  = ref_js
 
         return features, model_preds, ref_values
 
@@ -175,6 +175,7 @@ class PropagationCorrector:
         importances = self.model.feature_importances_
         feature_names = ['power', 'j_dist', 's_dist', 'altitude', 'gain', 'env', 'los_prob']
         metrics['feature_importance'] = dict(zip(feature_names, importances.tolist()))
+        metrics['n_lit_scenarios'] = len(LiteratureDataset.get_a2g_training_scenarios())
 
         return metrics
 

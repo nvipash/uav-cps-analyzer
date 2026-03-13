@@ -1,0 +1,61 @@
+\begin{table}[htbp]
+\centering
+\caption{Model validation against experimental references (ASME V\&V 20)}
+\label{tab:validation}
+\begin{tabular}{lrrrrrr}
+\toprule
+Scenario & Model (dB) & 95\% CI & Reference & Error (dB) & MAPE & V\&V 20 \\
+\midrule
+Adamy: Tactical 5W, 200m & 35.0 & [24.6, 46.7] & 50.0 & 15.04 & 30.1\% & Fail \\
+Adamy: Tactical 5W, 500m & 24.3 & [13.8, 36.0] & 40.0 & 15.70 & 39.3\% & Fail \\
+Adamy: Portable 10W, 500m & 33.1 & [22.6, 44.8] & 45.0 & 11.92 & 26.5\% & Fail \\
+Adamy: Portable 10W, 1km & 25.5 & [15.0, 37.3] & 36.0 & 10.51 & 29.2\% & Fail \\
+Adamy: Portable 10W, 2km & 18.8 & [8.2, 30.5] & 28.0 & 9.25 & 33.0\% & Fail \\
+Adamy: Tactical 20W, 1km & 30.5 & [20.1, 42.1] & 40.0 & 9.46 & 23.6\% & Fail \\
+Adamy: Wideband 200W, 5km & 35.4 & [25.0, 47.1] & 32.0 & 3.43 & 10.7\% & Pass \\
+Adamy: Wideband 200W, 10km & 32.6 & [22.2, 44.2] & 22.0 & 10.64 & 48.4\% & Fail \\
+Poisel: Voice link 50W, 1km & 41.7 & [31.3, 53.2] & 42.0 & 0.26 & 0.6\% & Pass \\
+Poisel: Data link 100W, 2km & 37.1 & [26.7, 48.4] & 38.0 & 0.90 & 2.4\% & Pass \\
+Poisel: Mesh attack 100W, 3km & 37.2 & [26.8, 48.5] & 32.0 & 5.19 & 16.2\% & Pass \\
+Poisel: Helicopter 500W, 5km & 55.4 & [45.0, 66.6] & 45.0 & 10.41 & 23.1\% & Fail \\
+Poisel: Aircraft 5kW, 20km & 55.2 & [44.7, 66.5] & 35.0 & 20.20 & 57.7\% & Fail \\
+Poisel: Mobile 100W, 1km & 39.7 & [29.2, 51.1] & 46.0 & 6.25 & 13.6\% & Pass \\
+Poisel: Mobile 100W, 4km & 30.5 & [20.0, 41.9] & 28.0 & 2.50 & 8.9\% & Pass \\
+Skolnik: Stationary 500W, 3km & 47.3 & [36.7, 58.7] & 45.0 & 2.28 & 5.1\% & Pass \\
+Skolnik: Stationary 1kW, 5km & 48.1 & [37.6, 59.5] & 40.0 & 8.06 & 20.1\% & Fail \\
+Skolnik: Array 2kW, 10km & 54.9 & [44.5, 66.4] & 35.0 & 19.92 & 56.9\% & Fail \\
+Skolnik: Phased-array 5kW, 15km & 58.9 & [48.5, 70.4] & 32.0 & 26.90 & 84.1\% & Fail \\
+FCC: DJI Mavic3 ch1 2.4G & 27.9 & [17.4, 39.3] & 32.0 & 4.13 & 12.9\% & Fail \\
+FCC: DJI Mavic3 ch20 2.4G & 33.0 & [22.5, 44.5] & 20.0 & 12.99 & 65.0\% & Fail \\
+FCC: DJI Mavic3 ch40 5.8G & 33.0 & [22.6, 44.4] & 10.0 & 23.00 & 230.0\% & Fail \\
+FCC: DJI Mini4 Pro 2.4G & 37.3 & [27.0, 48.4] & 18.0 & 19.28 & 107.1\% & Fail \\
+FCC: DJI FPV 5.8G & 43.1 & [32.7, 54.3] & 28.0 & 15.08 & 53.9\% & Fail \\
+Brust: Portable detect 1km & 35.4 & [25.0, 46.5] & 32.0 & 3.38 & 10.6\% & Pass \\
+Brust: Mobile detect 2km & 47.6 & [37.1, 58.8] & 36.0 & 11.60 & 32.2\% & Fail \\
+Park: Anti-drone tactical & 46.2 & [35.7, 57.3] & 34.0 & 12.19 & 35.8\% & Fail \\
+Wang: C-UAS performance 3km & 55.2 & [44.7, 66.4] & 34.0 & 21.25 & 62.5\% & Fail \\
+Wang: C-UAS swarm scenario & 59.9 & [49.4, 71.0] & 40.0 & 19.93 & 49.8\% & Fail \\
+ITU-R P.1411: short-range & 36.2 & [25.7, 47.3] & 30.0 & 6.20 & 20.7\% & Fail \\
+ITU-R: UMa NLOS 1km & 40.4 & [29.8, 51.4] & 32.0 & 8.40 & 26.3\% & Fail \\
+ITU-R: UMi LOS 500m & 31.4 & [20.8, 42.7] & 36.0 & 4.59 & 12.8\% & Pass \\
+ITU-R: SUI suburban 2km & 41.7 & [31.1, 53.0] & 30.0 & 11.74 & 39.1\% & Fail \\
+ITU-R: rural LOS 5km & 54.1 & [43.5, 65.5] & 28.0 & 26.12 & 93.3\% & Fail \\
+ITU-R: dense urban 1km & 43.4 & [32.8, 54.9] & 24.0 & 19.44 & 81.0\% & Fail \\
+ITU-R: high-altitude 10km & 58.4 & [47.8, 70.0] & 22.0 & 36.41 & 165.5\% & Fail \\
+Khawaja: urban h=50m, d_J=500m & 52.3 & [41.7, 64.1] & 41.6 & 10.73 & 25.8\% & Fail \\
+Khawaja: urban h=100m, d_J=1km & 43.5 & [32.9, 55.3] & 36.1 & 7.42 & 20.5\% & Fail \\
+Khawaja: urban h=200m, d_J=2km & 41.2 & [30.8, 52.9] & 34.1 & 7.14 & 20.9\% & Fail \\
+Khawaja: suburban h=50m, d_J=500m & 54.0 & [43.6, 65.6] & 41.4 & 12.64 & 30.5\% & Fail \\
+Khawaja: suburban h=100m, d_J=1km & 46.4 & [36.0, 58.1] & 35.9 & 10.49 & 29.2\% & Fail \\
+Khawaja: rural h=100m, d_J=500m & 63.0 & [52.5, 74.5] & 43.2 & 19.77 & 45.8\% & Fail \\
+Khawaja: rural h=200m, d_J=1km & 60.5 & [50.0, 72.1] & 40.7 & 19.79 & 48.6\% & Fail \\
+Khawaja: urban h=100m, mobile 100W & 56.1 & [45.6, 67.5] & 48.4 & 7.68 & 15.9\% & Fail \\
+Khawaja: suburban h=50m, d_J=1km & 44.8 & [34.4, 56.3] & 36.2 & 8.63 & 23.8\% & Fail \\
+Khawaja: urban 5.8GHz h=100m & 51.2 & [40.5, 62.5] & 41.6 & 9.57 & 23.0\% & Fail \\
+Khawaja: rural h=100m, d_J=1km & 59.0 & [48.2, 70.5] & 41.3 & 17.68 & 42.8\% & Fail \\
+Khawaja: suburban h=100m, mobile 100W & 60.5 & [49.8, 72.2] & 49.9 & 10.57 & 21.2\% & Fail \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+\footnotesize{Overall MAPE: 41.2\%, V\&V 20 pass rate: 19\%}
+\end{table}

@@ -129,15 +129,16 @@ class MultiJammerSimulator:
             target_angle = float(np.degrees(np.arctan2(ty - jy, tx - jx)))
             angular_offset = abs(((target_angle - node.aim_angle_deg + 180) % 360) - 180)
 
-            # Cosine pattern with beam width
-            half_bw = node.beam_width_deg / 2
-            if angular_offset >= half_bw:
-                # Outside main beam — strong attenuation
-                effective_gain = node.antenna_gain_dbi - 20.0
+            # Gaussian main-lobe pattern (ITU-R F.699-7 §2; 3GPP TR 38.901 Table 7.3-1)
+            # G(θ) = G_max - 12·(θ/θ_3dB)²  — valid for microwave antennas
+            # Sidelobe floor: G_max - 20 dB; back lobe (θ>120°): G_max - 25 dB
+            gain_reduction_db = 12.0 * (angular_offset / node.beam_width_deg) ** 2
+            sidelobe_floor_db = node.antenna_gain_dbi - 20.0
+            if angular_offset > 120.0:
+                effective_gain = node.antenna_gain_dbi - 25.0
             else:
-                # Within beam, cosine taper
-                cos_factor = max(0.001, np.cos(np.radians(angular_offset)) ** 2)
-                effective_gain = node.antenna_gain_dbi + 10 * np.log10(cos_factor)
+                effective_gain = max(sidelobe_floor_db,
+                                     node.antenna_gain_dbi - gain_reduction_db)
 
             # Sector/frequency partition: only some jammers contribute to relevant band
             band_factor = 1.0
@@ -301,22 +302,56 @@ class JammerNetworkOptimizer:
                     new_nodes.append(n)
             return JammerNetwork(nodes=new_nodes)
 
+        def crossover(p1: JammerNetwork, p2: JammerNetwork) -> JammerNetwork:
+            """Arithmetic blend crossover: interpolate positions and aim angles from two parents."""
+            child_nodes = []
+            for n1, n2 in zip(p1.nodes, p2.nodes):
+                alpha = np.random.uniform(0.3, 0.7)
+                cx = float(np.clip(alpha * n1.position[0] + (1 - alpha) * n2.position[0],
+                                   area_x[0], area_x[1]))
+                cy = float(np.clip(alpha * n1.position[1] + (1 - alpha) * n2.position[1],
+                                   area_y[0], area_y[1]))
+                # Circular interpolation of aim angle to avoid wrap-around artefacts
+                a1 = np.radians(n1.aim_angle_deg)
+                a2 = np.radians(n2.aim_angle_deg)
+                aim = float(np.degrees(np.arctan2(
+                    alpha * np.sin(a1) + (1 - alpha) * np.sin(a2),
+                    alpha * np.cos(a1) + (1 - alpha) * np.cos(a2),
+                )) % 360)
+                child_nodes.append(JammerNode(
+                    id=n1.id, position=(cx, cy, n1.position[2]),
+                    power_dbm=n1.power_dbm, antenna_gain_dbi=n1.antenna_gain_dbi,
+                    beam_width_deg=n1.beam_width_deg, aim_angle_deg=aim,
+                    cost_usd=n1.cost_usd,
+                ))
+            return JammerNetwork(nodes=child_nodes)
+
+        def tournament_select(scored: list, k: int = 3) -> JammerNetwork:
+            """Tournament selection: return the best individual from k random contestants."""
+            idx = np.random.choice(len(scored), size=min(k, len(scored)), replace=False)
+            return scored[int(max(idx, key=lambda i: scored[i][0]))][1]
+
         # Initial population
         population = [random_individual() for _ in range(population_size)]
         history = []
 
         for gen in range(n_generations):
-            # Evaluate fitness
             scored = [(fitness(ind), ind) for ind in population]
             scored.sort(key=lambda x: -x[0])
             history.append(scored[0][0])
 
-            # Keep top half, mutate them to fill rest
-            survivors = [s[1] for s in scored[:population_size // 2]]
-            new_pop = list(survivors)
+            # Elitism: carry forward the top 20 % unchanged
+            n_elite = max(1, population_size // 5)
+            new_pop = [s[1] for s in scored[:n_elite]]
+
+            # Fill the rest via tournament selection + crossover + mutation
             while len(new_pop) < population_size:
-                parent = survivors[np.random.randint(len(survivors))]
-                new_pop.append(mutate(parent))
+                p1 = tournament_select(scored)
+                p2 = tournament_select(scored)
+                child = crossover(p1, p2)
+                if np.random.random() < 0.4:
+                    child = mutate(child)
+                new_pop.append(child)
             population = new_pop
 
         # Final best
