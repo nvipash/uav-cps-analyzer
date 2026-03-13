@@ -27,7 +27,7 @@ Authors: Novitskyi P.S., Stepaniak M.V.
 Lviv Polytechnic National University, 2025
 """
 
-__version__ = "1.0.0"
+__version__ = "1.5.0"
 __author__ = "Novitskyi P.S., Stepaniak M.V."
 __email__ = "novitskyi@lp.edu.ua"
 __institution__ = "Lviv Polytechnic National University"

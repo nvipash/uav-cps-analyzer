@@ -6,7 +6,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)]()
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)]()
 
 ## Опис
 
@@ -36,7 +36,7 @@ Python 3.9+, без додаткових залежностей.
 ## Запуск
 
 ```bash
-# Повний аналіз (23 кроки, ~130 с)
+# Повний аналіз (26 кроків, ~160 с)
 python run_analysis.py
 
 # Окремі модулі
@@ -61,11 +61,12 @@ UAV-CPS-Analyzer/
 ├── Statistical & Validation (Layer 2)
 │   ├── sensitivity.py          # Sobol S1/ST, Morris elementary effects
 │   ├── validation.py           # ASME V&V 20, 48 cases, per-domain MAPE
-│   └── reporting.py            # LaTeX booktabs tables, Markdown reports
+│   ├── reporting.py            # LaTeX booktabs tables, Markdown reports
+│   └── literature_dataset.py   # A2G data from Khawaja (2019), data_origin labels
 │
 ├── AI/ML & Advanced (Layer 3)
 │   ├── ai_surrogate.py         # MLP/GP/ensemble surrogate, R²=0.965 (synthetic), 2400×
-│   ├── ai_optimizer.py         # Bayesian optimization (DE + surrogate)
+│   ├── ai_optimizer.py         # Bayesian optimization (GP + EI acquisition)
 │   ├── ai_propagation_correction.py  # Gradient Boosting residual correction
 │   ├── ai_adaptive_jamming.py  # Q-learning RL jammer agent
 │   ├── ai_threat_classifier.py # MLP+RF+GBT ensemble, 99.6% accuracy (synthetic data)
@@ -75,19 +76,19 @@ UAV-CPS-Analyzer/
 │   ├── swarm_scenarios.py      # UAV swarm attacks (4 types)
 │   └── trajectory_scenarios.py # Time-varying trajectories (4 types)
 │
-├── run_analysis.py             # 23-step integrated pipeline
+├── run_analysis.py             # 26-step integrated pipeline
 │
 ├── docs/
 │   ├── en/README.md            # Full English documentation
 │   └── ua/README.md            # Повна українська документація
 │
-└── output/                     # Generated artifacts
+└── output_v1.5/                # Generated artifacts
     ├── fig_*.pdf / fig_*.png   # 5 publication figures (300 DPI)
     ├── table3.tex / table4.tex / table7.tex
     └── summary_report.md
 ```
 
-## Ключові результати (v1.2)
+## Ключові результати (v1.5)
 
 | Модуль | Результат |
 |--------|-----------|
@@ -98,7 +99,10 @@ UAV-CPS-Analyzer/
 | Threat classifier | **99.6%** accuracy (vs 32% Dempster-Shafer) ¹ |
 | RL jammer (adversarial) | **+112%** vs best fixed strategy |
 | Spatial correlation | Ігнорування → **+9–30%** завищення ширини CI |
-| Validation (medium range) | MAPE **25.8%**, PASS rate **71%** (ASME V&V 20, 17 кейсів) |
+| Validation (medium range) | MAPE **27.6%**, PASS rate **41%**, CI coverage **65%** (ASME V&V 20, 17 кейсів) |
+| Validation (field_measurement) | MAPE **21.2%**, CI coverage **80%** (Khawaja 2019, 5 A2G кейсів) |
+| Validation (field_meas_estimated) | MAPE **34.6%**, CI coverage **29%** (Khawaja 2019, 7 A2G кейсів) |
+| Validation (overall, 48 кейсів) | MAPE **41.2%**, CI coverage **46%**, PASS **19%** |
 
 ¹ *Метрики виміряні на синтетичних тестових даних (Monte Carlo). Реальна точність залежить від польового калібрування.*
 
@@ -116,7 +120,7 @@ UAV-CPS-Analyzer/
                Analysis of UAV Communication Reliability},
   year      = {2025},
   institution = {Lviv Polytechnic National University},
-  version   = {1.2.0}
+  version   = {1.5.0}
 }
 ```
 

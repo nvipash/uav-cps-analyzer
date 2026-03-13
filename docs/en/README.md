@@ -5,7 +5,7 @@
 UAV-CPS-Analyzer is a comprehensive software complex for modeling and analyzing cyber-physical systems of unmanned aerial vehicles (UAVs) under electromagnetic jamming. It combines classical RF propagation models, formal statistical methodology, AI/ML techniques, multi-jammer coordination, swarm scenario analysis, and adversarial co-evolution into a single integrated tool.
 
 **Authors:** Novitskyi P.S., Stepaniak M.V., Lviv Polytechnic National University, 2025-2026
-**Version:** 1.2.0
+**Version:** 1.5.0
 **License:** GPL-3.0
 **Language:** Python 3.9+
 
@@ -36,7 +36,7 @@ python ai_threat_classifier.py
 python multi_jammer_coordination.py
 ```
 
-Expected runtime: 140-200 seconds depending on hardware.
+Expected runtime: 160-240 seconds depending on hardware.
 
 ## Architecture
 
@@ -50,16 +50,17 @@ The system has three layers:
 - **cps_analyzer.py** — Cyber-Physical Systems analysis: Dempster-Shafer sensor fusion (RF/Radar/Acoustic/EO-IR), C-UAS architecture, cost-effectiveness Pareto with multi-constraint optimization, stochastic dominance ranking
 - **config.py** — Configuration: drone database (DJI Mavic 3, Mini 4 Pro, FPV, fiber-optic), jammer specifications, 5 environment presets (dense_urban, urban, suburban, rural, open_field)
 
-### Layer 2: Statistical & Validation (3 modules)
+### Layer 2: Statistical & Validation (4 modules)
 
 - **sensitivity.py** — Global sensitivity analysis: Sobol indices (first-order S1, total-order ST), Morris method elementary effects screening, parallelized via multiprocessing
 - **validation.py** — ASME V&V 20 framework: 48 validation cases from 6 verified sources (Adamy 2015, Poisel 2011, Skolnik 2008, FCC ID regulatory, C-UAS surveys/ITU-R P.1411, Khawaja 2019 A2G field measurements); per-domain MAPE breakdown (close/medium/long range, regulatory, field_measurement, field_meas_estimated); 7 internal consistency checks
 - **reporting.py** — LaTeX table generation (booktabs format), Markdown summary reports with timestamps and reproducibility metadata
+- **literature_dataset.py** — A2G channel data from Khawaja (2019) arXiv:1801.01656 (Tables V/VI): path loss exponents and Rice K-factors for ML calibration; values labeled by `data_origin` (measured / interpolated / physics-estimated)
 
 ### Layer 3: AI/ML & Advanced (11 modules — 8 genuine AI/ML, 3 simulation/viz)
 
 - **ai_surrogate.py** — Neural network surrogate model (MLP/GP/ensemble) trained on Monte Carlo outputs; achieves R²≥0.96 with 200 training points and 2000-3000× speedup *(metric on synthetic test data)*
-- **ai_optimizer.py** — Bayesian Optimization with Gaussian Process surrogate (Matérn-5/2 kernel) and Expected Improvement acquisition; Latin Hypercube initial sampling, L-BFGS-B EI maximization with 20 random restarts; sensor suite optimization with budget constraints
+- **ai_optimizer.py** — Bayesian Optimization with Gaussian Process surrogate (Matérn-5/2 kernel, `ConstantKernel * Matern(nu=2.5)`) and Expected Improvement acquisition; Latin Hypercube initial sampling (8 points), L-BFGS-B EI maximization with 20 random restarts; `JammerOptimizer` and `SensorOptimizer` with budget constraints
 - **ai_propagation_correction.py** — ML correction of propagation model: Gradient Boosting on residuals from 20+ reference points
 - **ai_adaptive_jamming.py** — Reinforcement learning agent (Q-learning) for jamming strategy selection; supports adversarial environment and multi-objective reward (jam_rate + power_efficiency + stealth)
 - **ai_threat_classifier.py** — Ensemble NN (MLP + Random Forest + Gradient Boosting) for threat classification; 24-feature input including time-series, spectral, behavioral; achieves 99.6% accuracy vs 32% for pure Dempster-Shafer *(metric on synthetic test data)*
@@ -199,7 +200,7 @@ result = sim.simulate_attack(swarm, jammer_network)
 
 ## Running the Analysis
 
-The `run_analysis.py` script runs all 23 analytical steps:
+The `run_analysis.py` script runs all 26 analytical steps:
 
 ```bash
 python run_analysis.py
@@ -216,23 +217,26 @@ Steps:
 8. Sensor fusion & detection rates
 9. Formal validation (ASME V&V 20) + per-domain
 10. OAT sensitivity + cost-effectiveness Pareto
-11. AI Surrogate Model
-12. AI Bayesian Optimization
-13. AI Propagation Correction
+11. AI Surrogate Model (LHS training + literature anchors)
+12. AI Bayesian Optimization (jammer & sensor placement)
+13. AI Propagation Correction (Khawaja 2019 calibration)
 14. AI Adaptive Jamming (RL)
-15. AI Threat Classifier (ensemble)
+15. AI Threat Classifier (ensemble vs D-S vs hybrid)
 16. Long-range correction impact
-17. Adversarial RL + Multi-objective
+17. Adversarial RL + Multi-objective reward
 18. Multi-output uncertainty + Pareto constraints
 19. Variance reduction comparison (MC vs QMC vs Antithetic)
-20. Spatial correlation impact
+20. Spatial correlation impact (Gudmundson model)
 21. PCE-based tail estimation
 22. Active learning for ML correction
 23. Time-varying trajectory scenarios
+24. Multi-jammer coordination networks
+25. UAV swarm attack scenarios (4 swarm types)
+26. AI-vs-AI adversarial co-evolution (Nash equilibrium)
 
 ## Output Artifacts
 
-Generated in `output/`:
+Generated in `output_v1.5/`:
 - 5 publication figures (PDF + PNG, 300 DPI)
 - 3 LaTeX tables (table3.tex, table4.tex, table7.tex)
 - Markdown summary report (summary_report.md)
@@ -245,13 +249,25 @@ Generated in `output/`:
 - u_val = sqrt(u_model² + u_exp²)
 - PASS if |E| < u_val
 
-48 validation cases organized into 6 domains (actual results, v1.2):
-- close_range (5 cases): MAPE ~24%, PASS rate 0% — model underpredicts urban path loss at <500 m
-- medium_range (17 cases): MAPE **25.8%**, PASS rate **71%** — best-calibrated domain
-- long_range (9 cases): MAPE ~45%, PASS rate 14% — propagation model limitation beyond 5 km
-- regulatory (5 cases): MAPE ~98% — FCC measurements assume closer signal sources than model defaults
-- field_measurement (5 cases): Khawaja (2019) A2G — urban, interpolated from measured L/C-band exponents
-- field_meas_estimated (7 cases): Khawaja (2019) A2G — suburban/rural, physics-estimated exponents (weaker ground truth)
+48 validation cases organized into 6 domains (actual computed results, v1.5, N=10 000 iterations each):
+
+| Domain | n | MAPE | V&V 20 PASS | CI Coverage |
+|--------|---|------|-------------|-------------|
+| close_range | 5 | 25.8% | 20% | 40% |
+| medium_range | 17 | **27.6%** | **41%** | **65%** |
+| long_range | 9 | 62.2% | 11% | 22% |
+| regulatory | 5 | 93.8% | 0% | 20% |
+| field_measurement | 5 | **21.2%** | 0% | **80%** |
+| field_meas_estimated | 7 | 34.6% | 0% | 29% |
+| **Overall** | **48** | **41.2%** | **19%** | **46%** |
+
+Key observations:
+- `medium_range` is the best-calibrated domain (MAPE 27.6%, CI covers 65% of reference values)
+- `field_measurement` (Khawaja 2019 A2G, urban, interpolated exponents): MAPE within 15–30% target, CI coverage 80%
+- `field_meas_estimated` (suburban/rural, physics-estimated exponents): MAPE within 20–40% target; lower CI coverage reflects weaker ground truth
+- Model systematically over-predicts J/S (positive bias +7 to +20 dB) — consistent underestimation of path loss, especially rural
+- All V&V 20 FAILs for A2G domains are expected: threshold ≈ σ_ref ≈ 4 dB while errors are 7–20 dB
+- `regulatory` MAPE 93.8% reflects a domain mismatch (FCC test geometry vs simulation defaults)
 
 > **Note on signal source parameters:** Adamy/Poisel/Skolnik cases assume a tactical radio
 > signal source (P = 10 W, G = 0 dBi). FCC/UAV cases use UAV transmitter parameters
@@ -295,7 +311,7 @@ To add a new AI module:
   year = {2025},
   institution = {Lviv Polytechnic National University},
   url = {https://github.com/nvipash/uav-cps-analyzer},
-  version = {1.2.0}
+  version = {1.5.0}
 }
 ```
 
